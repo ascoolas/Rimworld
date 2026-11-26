@@ -1,0 +1,888 @@
+《修道院纪事》RimWorld 改编 · 第 1 集《誓愿 O Voto》
+调度剧本 v1（给 Mod 开发 Agent）
+==================================================================
+依据：分集大纲 v1 的 E01（场号沿用 E01-Sxx）；原著第 1–4 章。
+配套文件：
+  ep01_旁白_葡中对照.txt   旁白全文，编号 N001–N116，时间码与本文件一致
+  ep01_timeline.json        本文件的机器可读版（镜头、时间码、旁白编号），可直接被导演 Mod 读取
+标记：【猜测】未经验证的技术判断；【可选】可删的旁白或镜头；【后期】Mod 不用做，剪辑时完成。
+
+本集总长（按估算语速）：20:50.0（约 20.8 分钟，共 94 个镜头，113 条旁白）
+  旁白语速按 2.7 词/秒估算（欧洲葡语，年轻男声、克制、略快）。
+  配音生成后，以实际音频时长替换估算值即可：导演 Mod 读 timeline.json 时，
+  每条旁白的实际时长覆盖估算时长，后续时间码自动顺延（见第二节“时间码规则”）。
+  若要压回大纲的 17 分钟，可删【可选】旁白：N008 N032 N041 N048 N063 N090 N097 N098 N102 N105，约省 2 分钟。
+
+
+一、全局约定
+------------------------------------------------------------------
+1. 平台：RimWorld 1.6 + Harmony；已装全部 DLC（Royalty / Ideology / Biotech / Anomaly / Odyssey）。
+   Mod 暂名 MemorialDirector，以下简称“导演”。
+2. 坐标：RimWorld IntVec3 (x,z)，原点在地图西南角，x 向东，z 向北。
+   本文给出的坐标是“建议值”。每张地图里关键位置用【锚点】命名（如 K_ModelTable_S）。
+   导演 Mod 需提供“锚点”工具：开发者模式下放置不可见的命名标记，随存档保存；
+   脚本一律优先按锚点名寻址，坐标只作为找不到锚点时的后备。这样布景微调后脚本不用改。
+3. 时间：剧本时间码格式 mm:ss.s，从本集第一帧算起。
+   游戏以 1× 速度（60 tick/秒）运行录制；导演按“镜头起点 + 相对秒数”调度。
+4. 镜头参数：
+   pos (x,z) = CameraDriver 的 rootPos；size = rootSize（正交半高，单位格）。
+   预设：CU 特写 3–4.5｜MCU 近景 5–6｜MS 中景 7–9｜WS 全景 10–18｜EWS 大全景 20–35｜AERIAL 鸟瞰 35+。
+   vanilla 的缩放下限约 11，导演必须放开到 2.5–80（Harmony 改 CameraDriver 的缩放范围配置）。
+   动作：CUT 硬切｜PAN 平移（指定目标 pos 与时长）｜PUSH/PULL 推拉（改 size）｜RISE 拉高（size 增大并保持跟随）
+         FOLLOW 跟随角色（可带偏移）｜FIX 固定｜SHAKE 震动｜FADE_IN/FADE 淡入淡出（黑）｜CUT_BLACK 硬切黑。
+   缓动默认 easeInOut。
+5. 录制：UI 全隐藏（含名字标签、选择框、气泡以外的一切界面）；1920×1080 或 3840×2160，60fps；
+   游戏声音单独录一轨（或静音，后期配声）。每个存档录完一个场景，导演输出时间码日志（见第七条）。
+6. 存档：每场一个存档，命名见各场标题。场内的“子存档”是同一地图不同布置或不同地图的插入镜头。
+7. 时间码日志：导演每执行一个镜头，在 /MemorialDirector/logs/ 写一行
+   shot_id, 计划起点, 实际起点(真实时间), 实际时长, 存档名
+   剪辑时按 shot_id 对齐旁白与字幕。
+8. 无随机：导演运行期间关闭全部随机事件、需求衰减（饥饿、睡眠、娱乐、心情）、精神崩溃、社交互动、
+   小人自主 AI。小人只执行脚本指令；脚本没给指令时原地站立（可选 idle_sway 微动）。
+
+
+二、导演指令表（剧本里出现的全部动词，开发需逐一实现）
+------------------------------------------------------------------
+【场景与环境】
+  LOAD save                       载入存档（录制前人工载入亦可）
+  TIME hh:mm [→ hh:mm, 秒]         锁定或快进一天中的时刻。【猜测】实现：自定义 GameCondition 覆盖 SkyTarget，
+                                   而不是真的推进游戏时间，避免作物、温度、需求被时间推动。
+  WEATHER def                      立即切换天气（WeatherManager.TransitionTo 并把过渡时长设为 0）
+  SEASON 春|夏|秋|冬                只改地表与植物外观，不改温度
+  LIGHT override(颜色,强度)          叠加天光颜色，如日落金色
+  FILTER none|dream|dream_gold|dream_red|chronicle|memory   全屏后处理：
+         dream = 降饱和 + 暗角 + 轻微模糊 + 缓慢波动；dream_gold = dream 偏暖金；dream_red = dream 偏暗红；
+         chronicle = 暖褐 + 纸张颗粒 + 暗角（“据说”的轶事）；memory = 灰褐 + 轻微闪烁（角色口述的往事）
+  SPAWN / DESPAWN 角色或物件 @锚点 [FACE 方向]
+  OPEN / CLOSE 门
+【角色】
+  MOVE 角色 → 锚点 [speed=walk|jog|run|数值格/秒]   寻路行走；必须能按“期望到达时刻”自动调速
+  FACE 角色 N|E|S|W|目标
+  POSE 角色 stand|sit|kneel|prone|lie       kneel 为自制：身体贴图下移 0.15 格并纵向压缩 0.85；prone = 俯卧
+  LAYDOWN 角色 床位|地面                   vanilla 躺下（睡姿）
+  WANDER 角色组 区域 [时长]                 在区域内随机走动，脚本控制随机种子以保证可复现
+  FOLLOW 角色 目标 距离 / FLEE 方向 / BACKOFF 格数 / JOG
+  ATTACH / DETACH 角色 → MovingProp 槽位   上下车船；ATTACH 后角色绘制在道具上，随之移动
+  MOUNT 骑手 坐骑 / GALLOP                   骑乘（vanilla 无骑乘，自制：骑手绘制在马上方，作为 ATTACH 的特例）
+  GIVE 甲 → 乙 物品 / HOLD 物品 / STOW 物品入背袋 / DROP / CARRY / THROW / DRAG 尸体
+  EAT 物品                                  吃的动作（vanilla 进食动画+fleck），不改需求
+  DRAFTED 角色 on|off                       仅用于显示手持武器（UI 已隐藏，不会出现征召界面）
+  MELEE / SHOOT 目标                        vanilla 战斗动作，命中结果由脚本决定（不随机）
+  DAMAGE 伤害类型 → 身体部位 [致死]          直接施加伤害，例如 Gunshot→LeftHand
+  KILL 角色 [伤害类型]
+  HEDIFF add|remove|swap 名称 → 部位         义肢切换就用 swap
+  APPAREL 角色 换装 A→B
+  MUTE 角色                                 之后不再允许该角色出现气泡
+【动画】（vanilla 没有的都用“绘制偏移/旋转/缩放”的补间实现，不需要骨骼动画）
+  bow 前倾 15°｜nod 点头｜headshake 摇头｜wave 挥手｜tremble 抖动｜stagger 踉跄｜stumble 绊｜recoil 后仰
+  flinch 缩一下｜shove 侧让｜slap 自打耳光｜flagellate 自笞｜bless 祝福｜knock 敲门｜bite 用牙绑义肢
+  interact 摆弄身前物件｜place / pick 放置/拿起｜extend 前伸｜lean 俯身｜stretch 伸懒腰｜row 划桨
+  hop 鹳式跳｜drop / climb 从高处落下/爬上｜wake 坐起｜rear 马立起｜knockdown 被击倒｜look_up / look_around
+  idle_sway 原地微动｜jiggle 物件抖动｜chop 剁肉｜hold 扶住他人｜help 搀扶｜step_on 踩脚｜shrug 耸肩｜push 推搡
+【气泡与粒子】
+  MOTE 角色 speech|laugh|pray|anger|tears|assobio|urro|'!'|'?'|自制图标
+    speech 用 vanilla 社交互动图标，只表示“谁在说话”，不显示文字。台词全由旁白讲述。
+  FLECK 类型 位置                            自制粒子见资产表
+  PLAY 效果器                                 vanilla 或 DLC 的 Effecter，如手术、仪式演讲
+【镜头】见第一节第 4 条。
+【时间码规则】
+  每个镜头：起点 = 上一镜终点；时长 = pre + 本镜旁白总时长 + post。
+  每条旁白：时长 = 实际音频时长（无音频时按 2.7 词/秒估算）+ 句后停顿。
+  镜头内的相对时刻写作 “+Ns”，或写作“在旁白某词处”：导演可以用词级时间戳（TTS 一般能导出）或按词数比例近似。
+
+
+三、资产清单（第 1 集所需）
+------------------------------------------------------------------
+优先级：P0 不做就拍不了｜P1 影响观感｜P2 可用后备方案。“后备”是做不出来时的替代。
+
+3.1 角色（年龄按 1711 年；Biotech 年龄系统设置）
+  巴尔塔萨·马特乌斯“七个太阳” 男 26，高个，深色乱发、深色络腮胡，晒黑。破旧蓝色军服外套（自制或 Duster 染色）、
+      长裤、赤脚（RimWorld 本就不画鞋）。背袋 Alforge（自制 Apparel，Belt 层，背在身后，空/满两种贴图）。
+      斗篷 Capote（自制，夜间睡觉用）。左手：S05 之前完整；S05 起 MissingBodyPart(LeftHand)。
+  若昂五世 男 21，瘦，长卷发假发（棕），Royalty 贵族礼服；睡袍自制。
+  王后唐娜·马利亚·安娜 女 28，苍白，浅棕发；拖地长裙（自制，盖住脚）；长睡袍（自制）；“撩起裙摆”变体（梦境）。
+  唐·努诺·达·库尼亚 男 60，主教/宗教裁判官：Ideology 主教风格长袍（紫）+ 高冠。
+  圣若泽的安多尼修士 男 70，褐色方济各会教服 + 白绳腰带 + 兜帽（自制，或 Ideology 长袍染 #6B4A2B）。
+  唐·弗朗西斯科亲王 男 20，黑衣，仅梦境出现：高跷版、骑马持火枪版。
+  乌尼昂侯爵夫人 女 45；奥地利伯爵夫人 女 40；侍女×2。
+  内侍×4、侍从×10、贵族×2（Royalty 服饰，颜色统一深红/深蓝）。
+  若昂·埃尔瓦斯 男 45，灰白胡须，旧军服 + 斗篷。流浪汉×4（一人花白胡子）。
+  渡船：船老大、阿尔加维桨手×4、潘加斯老夫妇（男 62、女 60）、开玩笑的人（男 30）、乘客×3。
+  其他群演见各场标题。群演统一用“群演模板”批量生成：按场景给定服饰色板、性别比例、年龄区间。
+
+3.2 自制物件（ThingDef / 建筑 / 物品）
+  P0  BasilicaModel 圣伯多禄大教堂模型（3×2 家具，5 阶段贴图 + 8 槽圣像 overlay，可倒置显示）
+  P0  RoyalBed 荷兰御床（双人 3×4，金线床围、华盖；被子 overlay：普通 / edredão 大鼓包）
+  P0  Gancho 钩子、Espigão 长钉（物品贴图 + 对应 Hediff，见 3.3）
+  P0  Fragata 特茹河渡船（MovingProp 5×12，三角帆落/起两态，船上 10 个座位槽，相对坐标见 S07）
+  P0  Window 窗户（墙类建筑，贴图有窗框，阻挡通行但不遮挡后面的人）
+  P1  VelvetChest 天鹅绒大木箱（开/合）、CupolaChest 穹顶木箱、Estatueta 小圣像（物品）
+  P1  Candelabro 烛台（发光，可脚本开关）、BellCord 铃绳、Confessional 告解格栅、矮榻
+  P1  Bier 灵柩台；SilverLamp 银吊灯（发光，可移除）+ Chain 吊链（可摆动）；StAnthonyStatue 圣安多尼像（三种贴图）
+  P1  Pálio 华盖、Andor 圣像肩舆（MovingProp，抬杆人 ATTACH）；Estandarte 旗幡；Chicote de penitente 鞭子（武器贴图）
+  P1  Capirote 赎罪者尖帽（可着色彩带）；Manto 黑斗篷；女人头巾（可着色）
+  P1  Coche 马车（MovingProp，马 ATTACH 在前）；Navio 英国船（大型 MovingProp，可静止停泊）
+  P1  Carroça 车子（绘制层高于躺地的人物）；Prancha 搭板；Carcaça 挂肉；白瓷砖墙/地
+  P1  Mosquete 火枪（vanilla 步枪换贴图）；“Mão esquerda”断手（物品 + 近战武器两种 def）
+  P1  JesseTree 耶西之树（梦境道具，可缩放与透明）；Stake 火刑柱、WoodPile 柴堆（E02 也要用）
+  P2  Pedaço 人体残块物品（多种像素贴图）；襁褓物品；麻袋（开/合）
+  P2  物品：Moeda 硬币、Tigela 碗、Pão com conduto、Sardinhas、Alface 生菜、Melancia 西瓜、Canastra 鱼篓、天鹅绒包、Peça de roupa 衣物
+3.3 自制 Hediff
+  P0  ProstheticHook / ProstheticSpike：AddedBodyPart，装在 LeftHand 部位（该部位缺失时允许安装）。
+      带渲染节点（1.5+ 的 Hediff renderNodeProperties），在人物左侧画出钩子/长钉，随朝向变化。
+      Spike 提供近战 tool：stab，伤害高。swap 指令 = 同一 tick 内 remove + add。
+3.4 自制粒子 Fleck
+  tears 泪滴｜pray 合掌｜anger 怒｜assobio 嘘声｜urro 嚎叫波纹｜slap｜'V' 金色罗马数字｜数字 1–9 与 '7'
+  Percevejo 臭虫（地面爬行 + 垂直下落两种）｜Rosário 念珠｜aroma 金色香气｜心形蜡烛图标｜音符
+  Golfinho 海豚（抛物线弓背）｜水面闪光｜缆绳｜十字祝福｜鱼篓滴水｜‘escamas’鱼鳞 filth
+3.5 系统（按优先级，第 1 集用到的部分）
+  P0  导演核心：时间轴、并行角色轨道、锚点、镜头、日志、关闭随机与需求（大纲第七节 P0）
+  P0  MovingProp：可沿路径平滑移动的道具 + 乘客 ATTACH（Harmony 补丁 Pawn 的 DrawPos 加子格偏移）。
+      第 1 集用于渡船、马车、华盖、肩舆、英国船；它也是第 6 集大鸟飞行的底座，建议一开始就做成通用件。
+  P0  Hediff 渲染节点（义肢可见）
+  P1  游行系统 PROCESSION：队列模板 + 路径 + 速度 + 沿途群众反应规则（第 2 集火刑游行复用）
+  P1  MOUNT 骑乘（MovingProp 的特例：坐骑是活动物）
+  P1  FILTER 后处理滤镜
+  P1  场景快照工具（大纲 P2-13）：第 1 集先用它按布局生成“修道院蓝图”（SH31），之后用于 M6 五个年份快照。
+  P2  群演模板批量生成
+
+
+四、地图与锚点
+------------------------------------------------------------------
+写法：区域 = x 范围, z 范围。锚点名 (x,z)。尺寸是建议值，搭景时可调，调完以锚点为准。
+历史地理不追求精确，以俯视画面好读为先。
+
+M1 里斯本·王宫 / 王宫广场 / 里贝拉（200×200，多集复用）
+  特茹河 z 0–29（深水 0–20，浅水 21–29）
+  里贝拉码头与鱼市 x 0–69, z 30–79；码头边缘 z=30
+     M1_Ribeira_Landing (35,31)   渡船泊位 (35,25)
+     酒馆 M1_Tavern (60,75)，旁边钻石店 (64,75)
+  王宫广场 Terreiro do Paço x 70–199, z 30–109（石板地）；M1_Square_Center (130,70)
+  王宫 x 70–139, z 110–189；南立面 z=110，正门 M1_PalaceGate (105,110)
+     国王寝殿 K  x 75–94, z 160–179
+        K_ModelTable_S (84,168) 国王坐位；BasilicaModel 中心 (84,170)
+        VelvetChest (80,170)；CupolaChest (82,173)；K_Dress (88,165)；K_Door (95,170)；K_Bed (76,176)
+        Dresser (92,162)；宴桌（SH39 用，可临时摆放）
+     回廊 G  x 95–124, z 168–172
+     王后卧房 Q  x 110–134, z 173–189
+        Q_DoorKing (112,173)（侍从门，通回廊）；Q_DoorLadies (134,181)（贵妇门，通贵妇前厅 x 135–139）
+        RoyalBed 中心 (122,184)，床头朝北；跪凳 (120,181)(124,181)；BellCord (125,186)
+        王后座椅 (117,178)；侯爵夫人座椅 (118,177)；矮榻 (130,177)；Confessional (115,178)
+  肉店 x 150–161, z 110–119，门 M1_Butcher_Door (155,110)，开向广场
+  室内光：全部用 Candelabro（可脚本开关），夜间室内其余光源关闭。
+
+M2 罗西奥广场（150×150；第 1 集只需最小版本，E02 再扩建）
+  广场 x 30–119, z 30–119
+  M2_Pyre_Row：火刑柱一排 x 65–85, z=80（第 1 集只用来打火光与结尾钩子）
+  M2_Crowd 区 x 62–88, z 56–72；M2_Blimunda_Start (70,57)；M2_Crowd_Front (75,69)
+  卖瓜摊 (100,70)
+
+M3 里斯本街巷（200×200，E01–E03 复用）
+  游行街 PS：x 0–199, z 95–104（10 格宽），中线 z=99.5
+     北侧房屋立面墙 z=105，Window 位于 x = 30,45,60,75,90,105,120,135,150；女人站 z=106
+     南侧立面墙 z=94，Window 位于 x = 38,53,68,83,98,113,128,143；女人站 z=93
+     W_Lover (90,105)；凹室 Alcove1 (104,118)、Alcove2 (98,118)（PS 北侧小巷内）
+  教堂 CH（沙布雷加斯方济各会，兼作其他教堂）x 20–59, z 140–189，门 (40,140)，门外台阶 z 132–139
+     主祭台 (40,186)；SilverLamp ×3 (37,183)(40,183)(43,183)；圣安多尼祭台 (25,170)，圣像 (24,172)
+     天窗 CH_Skylight (22,160)；灵柩 (40,160)；门外长凳 (38–42,137)
+  耶稣会科托维亚门 x 150–170, z 150–160，门 (160,150)
+  四旬斋太太家 x 170–179, z 120–129（一张床）
+  艾斯贝兰萨修道院：围墙 z=40（x 110–199）；墙内礼拜堂 (150,50)（x 140–160, z 44–56）
+     荒废屋檐 x 140–159, z 33–39；篝火 (150,31)；橄榄林 x 110–199, z 0–28
+  科托维亚空地（S09b 插入用）x 140–190, z 165–195
+
+M9 阿连特茹 → 佩贡埃斯 → 阿尔德加莱加（250×100）
+  王家大道 z 45–49，贯穿东西
+  埃武拉（东）x 205–249：教堂门 (212,52)，E_Beg (215,47)；铁匠铺 x 220–234, z 40–54，FueledSmithy (226,48)，马鞍匠台 (230,48)
+  佩贡埃斯村 x 175–185（几座房）
+  松林 x 80–170，沙地，vanilla 松树：AMB_Shade (125,50)；劫匪出发点 (130,62)(118,38)；路边弃尸点 (125,42)
+  阿尔德加莱加（西）x 10–60：酒馆 AL_Tavern (40,55)；仓库 x 15–29, z 60–74，Carroça (22,66)
+  码头 AL_Dock (6,50)，水域 x 0–5；渡船泊位 (3,50)
+  东部农舍（S09c 插入）x 236–248, z 75–95
+
+M9-J 赫雷斯战场（120×120，秋）
+  葡军阵线 z=40, x 30–90；西军阵线 z=85；西班牙骑兵出发 (115,60)
+  巴尔塔萨 (60,40)；野战帐篷 J_Surgeon x 20–30, z 10–20，手术台 (25,15)
+
+M9-T 特茹河（250×90）
+  全图水面；东岸 x 240–249（阿尔德加莱加，低矮岸线）；西岸 x 0–25（里斯本：高城墙、密集屋顶、城堡 (12,70)）
+  渡船航线 (235,45) → (30,45)
+  渡船座位（相对船心，船头朝西）：Seat_B 巴尔塔萨 (+1,+2)；老妇 (+1,+1)；老头 (+1,0)；Seat_J 开玩笑的人 (-1,+3)；
+      船老大 (0,-5)；桨手 (-2,-1)(-2,+1)(+2,-1)(+2,+1)；乘客 (-1,-2)(0,-3)(-1,0)
+
+
+五、逐场逐镜头
+------------------------------------------------------------------
+读法：每个镜头 = 时间码区间 + 时长｜镜头｜动作（所有角色轨道并行）｜旁白（编号与起点）｜备注。
+旁白原文与中文见 ep01_旁白_葡中对照.txt；这里只列葡语开头几个词，便于对位。
+
+
+==================================================================
+E01-S00  存档 E01-S00_ColdOpen  [00:00.0 – 00:15.0]
+  地图：M2 罗西奥
+  时间与光：夜 22:00，仅火光，环境光 0.15｜天气：晴，薄雾｜滤镜：无
+  在场：群演×40（平民，1739 年服饰）；老年布里蒙达（E10 造型，兜帽遮脸）
+  说明：全剧框架冷开场。火刑柱在画面外北侧，只拍火光照亮的人脸。不剧透 E10 的火刑柱内容。
+==================================================================
+
+E01-S00-SH01  [00:00.0 – 00:07.1]  7.1s
+  镜头：+0s 黑场 FADE_IN 2s；FIX (75,64) size 7；+2s 起 PUSH 到 size 6，持续到镜头结束，easeInOut。
+  动作：群演×40 位于 M2_Crowd 区（x 62–88, z 56–72），全部 FACE N；ANIM idle_sway（随机相位）。北侧画面外 M2_Pyre_Row 的 11 处火堆点燃（vanilla Fire 或自制 Pyre 发光体，glowRadius 14，暖橙色）。
+  旁白：N001 @00:03.0 (1.9s) “Esta história acaba numa fogueira.…”
+  空镜：旁白前 3.0s；旁白后 1.0s
+  备注：火光必须从画面上方（北）打来。人物面部朝北，所以镜头看到的是火光照亮的头顶和肩，正合适。
+
+E01-S00-SH02  [00:07.1 – 00:15.0]  7.9s
+  镜头：FOLLOW 老布里蒙达 size 6（偏移 0,+1）；她到位后 FIX；结束时硬切黑（CUT_BLACK）。
+  动作：老布里蒙达 SPAWN @(70,57) FACE N；MOVE → (75,69) speed=walk，路径穿过人群；她经过的群演 ANIM shove（向侧面让开 1 格并回位，0.6s）。到位后 FACE N，ANIM look_up（头部渲染偏移 +0.05，持续）。
+  旁白：N002 @00:07.1 (4.4s) “Mas, como quase todas as histórias…”
+  备注：兜帽遮脸（自制 Apparel 兜帽斗篷 灰色）。不出现她的名字。
+
+==================================================================
+E01-T00  存档 （无存档）  [00:15.0 – 00:21.0]
+  地图：—
+  时间与光：—｜天气：—｜滤镜：—
+  在场：—
+  说明：片头字卡，后期制作。
+==================================================================
+
+E01-T00-SH03  [00:15.0 – 00:21.0]  6.0s
+  镜头：黑场。
+  动作：后期叠字卡：MEMORIAL DO CONVENTO / 修道院纪事 —— Episódio 1 · O Voto / 第一集 · 誓愿 —— 最后 2 秒换字卡：Lisboa, 1711 / 里斯本，1711年。
+  旁白：无
+  空镜：旁白前 6.0s；旁白后 0.0s
+  备注：Mod 无需实现，仅在时间码日志中占位。
+
+==================================================================
+E01-S01  存档 E01-S01_Rei  [00:21.0 – 02:14.5]
+  地图：M1 王宫·国王寝殿 K / 王后卧房 Q
+  时间与光：夜 21:00，室内烛光（Candelabro×6）｜天气：无（室内）｜滤镜：无
+  在场：若昂五世；内侍×4（捧天鹅绒）；侍从×10；贵族×2
+  说明：插入镜头 SH05 使用存档 E01-S01b_Bastardos（M1 王宫广场·白天）。
+==================================================================
+
+E01-S01-SH04  [00:21.0 – 00:31.7]  10.7s
+  镜头：+0s FIX Q_Bed (122,184) size 6；+1s 起 PULL 到 size 9，easeOut。
+  动作：王后卧房 Q 空无一人。RoyalBed（自制，双人 3×4，金线床围与华盖）。烛台点亮。
+  旁白：N003 @00:23.0 (7.4s) “Esta é a cama. Veio da…”
+  空镜：旁白前 2.0s；旁白后 0.5s
+  备注：这一镜在王后卧房拍，下一镜切回国王寝殿。可在同一张 M1 地图同一存档内完成。
+
+E01-S01-SH05  [00:31.7 – 00:54.3]  22.6s
+  镜头：CUT → (84,167) size 9，FIX；+N005 起缓慢 PAN 至 (83,168) size 8。
+  动作：若昂五世 @K_ModelTable_S (84,168) FACE N，POSE sit（自制矮凳）。内侍1–4 站 (82,168)(83,166)(85,166)(86,168)，各持 Item 天鹅绒包（自制，红色）。天鹅绒大木箱 VelvetChest @(80,170)。
+  旁白：N004 @00:31.7 (12.2s) “O homem que a pagou é…”
+        N005 @00:44.5 (8.5s) “A rainha, D. Maria Ana Josefa,…”
+  备注：国王背对镜头，观众先看见模型桌和人群站位。
+
+E01-S01-SH06  [00:54.3 – 01:06.5]  12.2s
+  镜头：+0s CUT → 插入存档 E01-S01b：M1 王宫广场白天 WS (130,70) size 14；镜头在 N006 的 'Os bastardos' 处开始；+末 1s CUT 回 K (84,167) size 8。
+  动作：插入：8 个 Biotech 儿童/少年（7–15 岁）从 (100,60) 成群跑到 (160,75)，speed=jog。全部使用与若昂五世相同的发型（长卷发）和同一顶蓝帽子（自制 Apparel 'Chapéu real' 蓝色）。路人×6 停步回头。
+  旁白：N006 @00:54.3 (10.7s) “Na corte murmura-se que a rainha…”
+  备注：笑点靠画面：私生子都长着国王的发型。存档 E01-S01b 只需这一个镜头。
+
+E01-S01-SH07  [01:06.5 – 01:24.0]  17.5s
+  镜头：CUT → CU 模型桌 (84,170) size 4.5；N008 中段 PAN 到木箱 (80,170)。
+  动作：BasilicaModel（自制建筑 3×2，5 个阶段贴图 stage0–4，当前 stage2）。内侍1 走到木箱，ANIM interact（打开），木箱贴图换为 open 版本，露出红天鹅绒。
+  旁白：N007 @01:06.5 (5.6s) “Enquanto a hora não chega, o…”
+        N008【可选】 @01:12.7 (10.0s) “Não a verdadeira, que já existe…”
+  备注：‘乐高’一句不用画面特效，靠模型的拼装感。
+
+E01-S01-SH08  [01:24.0 – 01:36.2]  12.2s
+  镜头：MS (84,169) size 6 FIX。
+  动作：循环 3 次（每次 3s）：内侍i MOVE 到国王身侧 → GIVE 国王 Item 'Estatueta'（自制小圣像）→ 国王 ANIM place（前倾 0.5s）→ 模型 overlay 增加一尊。第 2 次放置时圣像倒置（overlay 旋转 180°，显示 1.2s），国王 ANIM pick + 再 ANIM place，overlay 恢复正立。全程侍从不动、不出气泡。
+  旁白：N009 @01:24.0 (11.1s) “Quatro camaristas passam-lhe os santos e…”
+  备注：模型的圣像 overlay 位于模型贴图顶层，8 个槽位，按序点亮。
+
+E01-S01-SH09  [01:36.2 – 01:47.3]  11.1s
+  镜头：CU 模型门楣 (84,169) size 3.5；后期在此叠 1.5s 插画卡：门楣铭文 PAVLVS V BVRGHESIVS ROMANVS，其中 'V' 高亮。
+  动作：国王 FACE 模型，MOTE 自制图标 'V'（金色罗马数字，1.5s，fleck 上浮）。
+  旁白：N010 @01:36.2 (10.0s) “No friso, em latim, o nome…”
+  备注：插画卡由后期完成；Mod 只需 MOTE。
+
+E01-S01-SH10  [01:47.3 – 01:54.7]  7.4s
+  镜头：PAN → 单独的大木箱 CupolaChest (82,173) size 5，箱子周围局部提亮（自制 Spotlight glower，半径 2）。
+  动作：国王 FACE CupolaChest 1s 后转回模型。
+  旁白：N011 @01:47.3 (5.9s) “Falta só a cúpula de Miguel…”
+  备注：穹顶最后封顶的那一声‘轰然’留到后续集，本集不拼。
+
+E01-S01-SH11  [01:54.7 – 02:09.7]  15.0s
+  镜头：CUT → WS K (86,166) size 9 FIX。
+  动作：国王 MOVE → K_Dress (88,165)。侍从链：侍从1(91,165)→侍从2(90,164)→侍从3(89,165)→国王，每 1.5s GIVE 一件 Item 'Peça de roupa'（自制，共 4 件）；最后一件到手时国王 APPAREL 换装：Royalty 礼服 → 自制 'Camisa de noite bordada'（白底金绣睡袍）。侍从4 ANIM interact 抽屉（vanilla Dresser）；侍从5、6 手持 Item 蜡烛，站 (87,163)(89,163)；侍从7、8 站 (86,167)(90,167) 完全不动；侍从9、10 站在 7、8 身后一格，与 7、8 同步转向；贵族1、2 在房间角落 (77,162)(78,161) ANIM look_around（每 1s 随机转向）。
+  旁白：N012 @01:54.7 (13.7s) “Despem o rei. Vestem o rei.…”
+  备注：旁白‘两个人一动不动，还有几个人不知道自己为什么在这儿’要能在画面上一一对上。
+
+E01-S01-SH12  [02:09.7 – 02:14.5]  4.8s
+  镜头：MCU 国王 (88,165) size 6。
+  动作：贵族1 MOVE 到国王身侧，ANIM adjust（0.8s 微动）；国王 FACE E，朝门 (95,170)。
+  旁白：N013 @02:09.7 (2.6s) “O cântaro está pronto. A fonte…”
+
+==================================================================
+E01-S02  存档 E01-S02_Voto  [02:14.5 – 03:50.7]
+  地图：M1 国王寝殿 K
+  时间与光：同 S01｜天气：无｜滤镜：无
+  在场：若昂五世；唐·努诺·达·库尼亚；圣若泽的安多尼修士；S01 全部侍从
+  说明：紧接 S01，可与 S01 共用存档后另存。
+==================================================================
+
+E01-S02-SH13  [02:14.5 – 02:21.5]  7.0s
+  镜头：WS K size 9，FIX，门 (95,170) 在画面右缘。
+  动作：门 OPEN。唐·努诺 SPAWN @(97,170) MOVE → (93,170)；安多尼修士跟在其后一格 (94,170)。所有侍从 FACE 门。
+  旁白：N014 @02:14.5 (5.9s) “Mas eis que entra D. Nuno…”
+  备注：唐·努诺：Ideology 主教长袍（紫）+ 高冠；修士：自制褐色方济各会教服 + 绳腰带（可用 Ideology 长袍染褐色）。
+
+E01-S02-SH14  [02:21.5 – 02:31.3]  9.8s
+  镜头：WS 同上，+3s 起缓慢 PUSH 到 size 7。
+  动作：宫廷步法 ×3 轮（唐·努诺与修士同步）：MOVE W 1 格 → WAIT 0.7s → MOVE E 1 格 → WAIT 0.7s → MOVE W 2 格 → ANIM bow（身体渲染前倾 15°，1s）。三轮后到 (88,168)(89,168)。在场侍从在每次 bow 时同步 bow。
+  旁白：N015 @02:21.5 (8.5s) “Aproximar-se de um rei tem regras.…”
+  备注：节奏要像舞步。‘谁也不开心’：所有人保持无表情，不加任何开心的气泡。
+
+E01-S02-SH15  [02:31.3 – 02:43.4]  12.1s
+  镜头：TWO-SHOT (79.5,164) size 5。
+  动作：唐·努诺与国王 MOVE → (79,164)(80,164) 相对而立。唐·努诺 MOTE speech ×2。修士留在 (88,168)，ANIM tremble（轻微抖动）。
+  旁白：N016 @02:31.3 (11.1s) “O inquisidor chama o rei à…”
+
+E01-S02-SH16  [02:43.4 – 03:04.0]  20.6s
+  镜头：MCU (87.5,168) size 5，国王与修士。
+  动作：国王 MOVE → (87,168) FACE 修士。按旁白分句交替 MOTE speech：国王→修士→国王→修士（每次约 3s，对齐 'É verdade' / 'É verdade, Majestade' / 'Como o sabes' / 'Sei, mas não sei como sei'）。
+  旁白：N018 @02:43.4 (19.3s) “O rei pergunta ao frade, É…”
+  备注：这是本集第一段萨拉马戈式对话，气泡一定要卡准说话人。
+
+E01-S02-SH17  [03:04.0 – 03:14.6]  10.6s
+  镜头：MS size 7。
+  动作：国王 ANIM wave；修士 MOVE → 门外 (97,170) 后 DESPAWN。国王 MOVE → 唐·努诺身边；国王 MOTE speech，唐·努诺 MOTE speech。
+  旁白：N019 @03:04.0 (9.3s) “O rei manda retirar o frade…”
+
+E01-S02-SH18  [03:14.6 – 03:31.8]  17.2s
+  镜头：+0s WS size 10 → PUSH 到 size 7（整句时长），easeIn。
+  动作：国王 MOVE → (85,166) FACE S。全体 FACE 国王。在 'Prometo' 处播放 Ideology 演讲效果器（ritual speech 环形波纹）一次，并 MOTE speech。
+  旁白：N020 @03:14.6 (15.2s) “E D. João, quinto, ergue a…”
+  备注：这是本集的标题时刻。
+
+E01-S02-SH19  [03:31.8 – 03:43.6]  11.8s
+  镜头：四个快切，按旁白词卡点：'Deus'→ M1 王宫外景夜空 (110,150) size 30（1.3s）；'a virtude do frade'→ 回廊里走远的修士背影 (110,170) size 6；'a potência do rei'→ 国王 MCU size 4；'o ventre da rainha'→ 王后空床 CU size 4。
+  动作：全体 ANIM bow（第一切之前）。修士在回廊 G 中 MOVE W。
+  旁白：N021 @03:31.8 (10.7s) “Deus o ouça, dizem todos. Ninguém…”
+  备注：快切也可后期剪：Mod 只要录下这四个机位各 3 秒素材。
+
+E01-S02-SH20  [03:43.6 – 03:50.7]  7.1s
+  镜头：回到国王 MCU size 5，FIX。
+  动作：国王不动，FACE S（正对镜头）。
+  旁白：N022 @03:43.6 (4.1s) “Hoje chamar-se-ia a isto um pré-pagamento.…”
+
+==================================================================
+E01-S03  存档 E01-S03_Rainha  [03:50.7 – 06:37.4]
+  地图：M1 王后卧房 Q（梦境：M1 王宫广场 / 国王寝殿）
+  时间与光：夜 22:00，烛光；梦境另设｜天气：无｜滤镜：梦境段用 dream
+  在场：王后；乌尼昂侯爵夫人；奥地利伯爵夫人；侍女×2；若昂五世；内侍×2；唐·弗朗西斯科（仅梦）；安多尼修士（仅梦，半透明）
+  说明：子存档：E01-S03a 卧房；E01-S03b 王后之梦（M1 广场，夜，泥地）；E01-S03c 国王之梦（M1 国王寝殿，K_Bed）。
+==================================================================
+
+E01-S03-SH21  [03:50.7 – 03:58.7]  8.0s
+  镜头：WS Q (120,179) size 8。
+  动作：王后 POSE sit @(117,178)；侯爵夫人 POSE sit @(118,177)。两人交替 MOTE speech；'chora-se' 时两人 FLECK tears（自制泪滴 fleck，各 2 次）。
+  旁白：N023 @03:51.7 (5.9s) “No quarto da rainha fala-se de…”
+  空镜：旁白前 1.0s；旁白后 0.5s
+
+E01-S03-SH22  [03:58.7 – 04:01.1]  2.4s
+  镜头：同上。
+  动作：门 Q_DoorKing (112,173) OPEN；传令侍从进门一格 MOTE speech；奥地利伯爵夫人从 Q_DoorLadies (134,181) 进入站 (131,181)。
+  旁白：N024 @03:58.7 (1.1s) “Anuncia-se o rei.…”
+
+E01-S03-SH23  [04:01.1 – 04:14.1]  13.0s
+  镜头：WS size 9 → MS size 7。
+  动作：国王与内侍×2 进门。国王与王后各站 (120,180)(122,180) 相对，交替 ANIM bow ×3。内侍给国王 APPAREL 脱去外袍；侯爵夫人与伯爵夫人给王后 APPAREL 换为自制 'Camisa de noite longa'（拖地长睡袍，盖住双脚）。然后：内侍 MOVE → Q_DoorKing 外 (112,171) DESPAWN；贵妇 MOVE → Q_DoorLadies 外 (136,181) DESPAWN。两门 CLOSE。
+  旁白：N025 @04:01.1 (11.9s) “Seguem-se as vénias. Muitas vénias. Despem…”
+  备注：两拨人从两扇门走，画面要清楚。
+
+E01-S03-SH24  [04:14.1 – 04:28.3]  14.2s
+  镜头：MS (122,182) size 6。
+  动作：国王牵王后（两人 MOVE 同步，并排）→ 各自跪凳：国王 (124,181)、王后 (120,181)，FACE N，POSE kneel；MOTE pray（自制合掌图标）。
+  旁白：N027 @04:14.1 (12.6s) “Antes de subirem à cama, ajoelham-se…”
+  备注：kneel 为自制姿势，见指令表。
+
+E01-S03-SH25  [04:28.3 – 04:41.5]  13.2s
+  镜头：CU 床 (122,184) size 5。
+  动作：王后 LAYDOWN RoyalBed 槽位1；羽绒被 overlay 切换为 'edredão' 大鼓包贴图（几乎盖住王后，只露头顶）。国王 LAYDOWN 槽位2。
+  旁白：N028 @04:28.3 (11.9s) “A rainha dorme todo o ano…”
+
+E01-S03-SH26  [04:41.5 – 04:53.6]  12.1s
+  镜头：FIX 床 size 6，不切开。
+  动作：两人执行 vanilla Lovin（JobDefOf.Lovin，持续整句+2s）：心形 fleck；床体 ANIM jiggle（绘制偏移 ±0.03，2Hz）。
+  旁白：N029 @04:41.5 (8.1s) “O rei cumpre o seu dever…”
+  备注：尺度按用户要求：直接用游戏能表现的方式，不切走。
+
+E01-S03-SH27  [04:53.6 – 05:14.8]  21.2s
+  镜头：CU 床围褶皱 (120,186) size 3.5；N032 的 'sangue plebeu' 处 CUT 到插入（E01-S09 存档：屋檐下熟睡的流浪汉 CU size 4，同样有臭虫）2s 后 CUT 回床。
+  动作：自制 fleck 'Percevejo'（2px 黑褐色小虫）：从床围褶皱爬出（地面平移），部分从华盖上方落下（垂直下落）。数量 20，持续整镜。
+  旁白：N030 @04:53.6 (11.9s) “Nessas noites, os percevejos da cama…”
+        N032【可选】 @05:06.1 (6.7s) “De resto, os percevejos não distinguem…”
+  备注：插入镜头需在拍 S09 时一并录下。
+
+E01-S03-SH28  [05:14.8 – 05:35.4]  20.6s
+  镜头：MS 床 size 6。
+  动作：王后 ANIM extend（朝国王方向前伸 0.2 格）；国王 ANIM lean + 小心形 fleck ×1。王后 ANIM interact 铃绳 BellCord (125,186)（自制，摆动贴图）+ 铃铛 fleck。两门 OPEN：内侍、贵妇重新 SPAWN 进入。国王起身，APPAREL 穿回外袍，MOVE → Q_DoorKing 外 DESPAWN。
+  旁白：N033 @05:14.8 (11.5s) “Cumprido o dever, a rainha estende…”
+        N034 @05:26.9 (7.4s) “A rainha puxa o cordão da…”
+
+E01-S03-SH29  [05:35.4 – 05:48.9]  13.5s
+  镜头：+0s MS size 8 → PUSH 到 CU size 4（整句时长）。
+  动作：王后 LAYDOWN 不动。贵妇 ANIM interact 两个烛台 → glower 关闭（光照逐步变暗）。守夜贵妇 LAYDOWN 矮榻 @(130,177)。王后头顶自制 fleck 'Rosário'（念珠珠子，越来越慢，最后停）。
+  旁白：N035 @05:35.4 (11.1s) “Ela fica imóvel, como mandam os…”
+
+E01-S03-SH30  [05:48.9 – 06:10.3]  21.4s
+  镜头：存档 E01-S03b。FILTER dream。FOLLOW 王后 size 8。
+  动作：M1 王宫广场 夜，地面 Mud。王后（长睡袍，APPAREL 变体 'saias levantadas'）MOVE (120,40)→(120,90) speed=0.7×walk。唐·弗朗西斯科（黑衣，自制高跷：渲染偏移 +0.7 格，脚下高跷贴图）绕王后做圆周运动（半径 3，4s 一圈），并 ANIM hop（上下 0.15，像鹳）。
+  旁白：N036 @05:48.9 (11.9s) “E sonha. Sonha que atravessa o…”
+        N037 @06:01.6 (6.3s) “Este sonho nunca o contou ao…”
+  备注：梦境滤镜见指令表。
+
+E01-S03-SH31  [06:10.3 – 06:37.4]  27.1s
+  镜头：存档 E01-S03c。FILTER dream_gold。+0s CU 床 (76,176) size 5；+6s 起 PULL 到 size 22（覆盖蓝图全貌），持续到 N038 结束；N039 时 FIX；最后 1.5s FADE 到黑。
+  动作：国王 LAYDOWN K_Bed（国王自己的床）。自制道具 JesseTree（5×7 格贴图，枝上 10 个小人像）从床中部偏下（下体位置）生长：scale 0→1，6s，easeOut。随后 JesseTree alpha 1→0（2s），同时在床四周 SPAWN 修道院蓝图（vanilla Blueprint 外观，按场景快照工具的 'Mafra_dream' 布局：40×30 外墙 → 两座钟楼 → 中央穹顶，分三波各 1.5s）。安多尼修士 SPAWN 于蓝图正门 (76,152)，alpha 0.7，FACE S。
+  旁白：N038 @06:10.3 (20.0s) “O rei também sonha. Sonha que…”
+        N039 @06:31.1 (3.3s) “Não há muitos reis assim. Mas…”
+  备注：蓝图外观天然有‘还没造出来的修道院’之意，也是场景快照工具的第一次实战。
+
+==================================================================
+E01-S04  存档 E01-S04_Milagres  [06:37.4 – 11:22.0]
+  地图：M3 里斯本街巷（教堂 CH、耶稣会门、游行街 PS）+ M1
+  时间与光：多段，见各镜头｜天气：多段｜滤镜：奇迹段用 chronicle；梦境用 dream
+  在场：米格尔修士遗体；群众×25；窃贼；方济各会修士×8（含老修士）；学生；耶稣会门房；赎罪游行全员（见资产表）；窗口女人×18；四旬斋太太、女仆、男人×2、丈夫；王后、侍女、国王；唐·弗朗西斯科（梦）、卫兵×6
+  说明：子存档：S04a 米格尔修士（CH，白天）；S04b 偷灯（CH，夜）；S04c 科托维亚门（夜）；S04d 赎罪游行（PS，阴天）；S04e 四旬斋太太（PS→小屋）；S04f 王后怀孕（M1 Q，白天）；S04g 王后第二梦（M1 广场，夜）。
+==================================================================
+
+E01-S04-SH32  [06:37.4 – 06:42.1]  4.7s
+  镜头：存档 E01-S04a。FILTER chronicle。WS 教堂 CH 外景台阶 (40,135) size 14。
+  动作：空镜，几个路人走过。
+  旁白：N040 @06:37.9 (3.3s) “Convém saber que os franciscanos têm…”
+  空镜：旁白前 0.5s；旁白后 0.3s
+  备注：chronicle 滤镜：暖褐、纸张颗粒、四角暗。用于本集所有‘据说’的轶事段。
+
+E01-S04-SH33  [06:42.1 – 07:00.4]  18.3s
+  镜头：+0s 室内 MS 灵柩 (40,160) size 6；'À porta da igreja' 处 CUT → 台阶 WS (40,135) size 10；'Esses não ressuscitaram' 处 PUSH 到 size 6 对准尸体。
+  动作：米格尔修士 Corpse 躺在灵柩（自制 Bier）上，禁用腐烂；金色 fleck 'aroma' 缓缓上升。盲人 MOVE 到灵柩旁，MOTE '!'。台阶：群众×25 推挤；指定 4 对 MELEE（拳头 2 对，vanilla Knife 2 对）；脚本 KILL 3 人（伤害类型 Cut/Stab），尸体留在台阶，血迹 filth。
+  旁白：N041【可选】 @06:42.1 (16.3s) “Quando frei Miguel da Anunciação morreu,…”
+
+E01-S04-SH34  [07:00.4 – 07:13.1]  12.7s
+  镜头：存档 E01-S04b（夜，下弦月，室内仅月光）。WS 教堂内 (32,175) size 10；N043 时 CUT → CU 主祭台上方吊链 (40,183) size 3.5。
+  动作：窃贼（黑兜帽）从天窗 CH_Skylight (22,160) 落下：ANIM drop（渲染偏移 +2→0，0.5s）。MOVE → 主祭台；依次 DESPAWN 三盏 SilverLamp（自制吊灯建筑，带光），并让窃贼 CARRY Item 'Candeeiro de prata'×3；原路 MOVE 回天窗，ANIM climb（偏移 0→+2）后 DESPAWN。三根 Chain（自制）在灯被摘后开始摆动：旋转 ±12°，6s 衰减。
+  旁白：N042 @07:00.4 (6.3s) “Em Xabregas, uma noite, alguém entrou…”
+        N043 @07:07.1 (4.4s) “As correntes ficaram a balançar, como…”
+
+E01-S04-SH35  [07:13.1 – 07:42.9]  29.8s
+  镜头：WS 教堂内 size 10 → N044 后半 CUT MS 圣安多尼祭台 (25,171) size 5；N046 时 CU 圣像 size 3.5。
+  动作：修士×8 持蜡烛进入，随机乱走 6s（在教堂区域内 WANDER），两人相撞 ANIM stumble。老修士 MOVE → (25,169) FACE 圣像，MOTE anger（自制）+ MOTE speech。然后依次从祭台 DESPAWN 银器 Item×4、帷幔，圣像 StAnthonyStatue 贴图变体：full → no_crown → no_crown_no_cross（怀中圣子始终保留）。其余修士围上，MOTE speech ×2，老修士停手。
+  旁白：N044 @07:13.1 (13.3s) “Um frade velho reparou que o…”
+        N045 @07:26.9 (11.5s) “E despiu o altar. A prata,…”
+        N046 @07:38.9 (2.2s) “Em diplomacia, isto chama-se um refém.…”
+
+E01-S04-SH36  [07:42.9 – 08:01.6]  18.7s
+  镜头：存档 E01-S04c（夜）。WS 耶稣会门 (160,151) size 7；'estudante' 处 CUT → 白天沙布雷加斯门口学生 MCU size 5；'Santo António' 处 CUT → 圣像 CU（S04b 存档）；'Cada um pense' 处 FIX 圣像。
+  动作：黑影 MOVE → 门 (160,150)，ANIM knock ×3（前冲微动），DROP Item 'Candeeiro de prata'×3，跑开 DESPAWN。门 OPEN，门房出来左右张望。学生（年轻男，学生长袍）站在 CH 门口 (40,139)，ANIM idle。
+  旁白：N047 @07:42.9 (16.7s) “Às duas da manhã, alguém bateu…”
+
+E01-S04-SH37  [08:01.6 – 08:16.5]  14.9s
+  镜头：存档 E01-S04a 外景。FIX CH 外景 size 10。
+  动作：三位老修士坐在门口长凳 (38–42,137)。时间流逝：天气与季节快切：晴 → 雨 → 雪 → 晴（每 2s 一次，WEATHER 即时切换 + 季节地表贴图），修士始终不动。
+  旁白：N048【可选】 @08:01.6 (13.7s) “Os franciscanos querem um convento em…”
+  备注：‘等一百年’的画面玩笑。
+
+E01-S04-SH38  [08:16.5 – 08:39.1]  22.6s
+  镜头：存档 E01-S04f（M1 Q，白天）。MS Q size 6；'o rei' 处 CUT → 国王寝殿 MCU size 5；末尾 CUT_BLACK 0.5s。
+  动作：王后 POSE kneel @自制告解格栅 Confessional (115,178) 一侧；安多尼修士 POSE sit 另一侧。王后 MOTE speech；修士 ANIM nod；修士起身 MOVE 出门。国王坐在桌前，头顶自制 fleck 数字 '1'…'9' 每 0.5s 换一次（数月份）。
+  旁白：N049 @08:16.5 (19.6s) “E não se deve dizer que…”
+
+E01-S04-SH39  [08:39.1 – 08:50.5]  11.4s
+  镜头：三个画面：'comer de mais'→ M1 王宫宴桌（借 K 房间，长桌）MS size 6；'comer de menos'→ M3 街角穷人 MS size 5；'o sol'→ M3 街道 WS size 16 时间快进 05:00→08:00（3s）。
+  动作：宴桌：贵族×3 连续 EAT（vanilla 吃饭动作，桌上堆满 Item 自制烤鸡、蛋糕）。街角：穷人×2 坐地 EAT Item 自制 'Alface'。
+  旁白：N050 @08:39.6 (9.3s) “Em Lisboa, uns morrem de comer…”
+  空镜：旁白前 0.5s；旁白后 0.8s
+  备注：存档可借 S01 与 S04d。
+
+E01-S04-SH40  [08:50.5 – 08:59.2]  8.7s
+  镜头：存档 E01-S04d（阴天，正午）。WS 游行街 PS (40,100) size 12。
+  动作：街上满地狂欢节残留：vanilla filth（呕吐物、垃圾）、自制 filth（葱头片）。两个醉汉 LAYDOWN 在路中。旁白最后一个词时，第一名赎罪者从画面左侧走入。
+  旁白：N051 @08:50.5 (7.4s) “Acabou o Entrudo. É tempo de…”
+
+E01-S04-SH41  [08:59.2 – 09:12.5]  13.3s
+  镜头：FOLLOW 游行队首 size 16（相机比队首超前 6 格）。
+  动作：游行 PROCESSION 沿 PS 中线 z=99.5 自西向东，速度 0.8 格/秒。队列（前→后，间隔 2 格）：赎罪者×10（两列）；修士×6 持 Estandarte（自制高旗幡，用 drafted 显示武器槽或 Apparel 背负）；主教 + 华盖 Pálio（自制 MovingProp，四名抬杆人 ATTACH）；香炉手（vanilla 烟 fleck）；圣像肩舆 Andor（MovingProp，抬夫×6）；教友会×20（红白斗篷）。两侧人行道 z 95–96、103–104 群众×30：队伍经过 3 格内时 → POSE prone 3s → ANIM slap（抖动 + 自制 'slap' fleck）→ 起身。
+  旁白：N052 @08:59.2 (12.2s) “À frente vêm os penitentes, depois…”
+  备注：游行系统可复用于 E02 火刑游行。
+
+E01-S04-SH42  [09:12.5 – 09:16.2]  3.7s
+  镜头：PAN 北移 → 北侧房屋立面 (90,106) size 9。
+  动作：Window（自制，墙体建筑，贴图有窗框，允许看见后面的人）每扇后站 1–3 名女人（z=106，室内格），FACE S。共 9 扇窗，18 人。
+  旁白：N053 @09:12.5 (2.6s) “Às janelas, só mulheres. É o…”
+
+E01-S04-SH43  [09:16.2 – 09:29.2]  13.0s
+  镜头：CU 一名赎罪者 size 4.5，FOLLOW。
+  动作：赎罪者 DRAFTED（显示自制武器 'Chicote de penitente'），ANIM flagellate（身体旋转 ±10°，0.4s 一下）；每第 3 下 HEDIFF add Cut（Torso，severity 0.05）→ vanilla 流血滴落 filth；血 fleck。
+  旁白：N054 @09:16.2 (11.9s) “Os penitentes açoitam as costas com…”
+  备注：drafted 只用于让武器显示，UI 已隐藏。
+
+E01-S04-SH44  [09:29.2 – 09:41.0]  11.8s
+  镜头：四组配对快切（每组 2s）：赎罪者 CU（彩带颜色）↔ 对应窗口女人 CU（同色头巾）。顺序：粉、绿、黄、丁香紫。
+  动作：赎罪者 Apparel 自制 'Capirote'（尖顶高帽），可着色彩带：粉 #F4A6C0、绿 #3BA55C、黄 #E8C547、丁香紫 #B79FD8、红 #C0392B、天蓝 #6EC1E4。对应女人 Apparel 头巾同色。
+  旁白：N055 @09:29.2 (10.7s) “Cada chicote tem uma fita de…”
+
+E01-S04-SH45  [09:41.0 – 09:46.4]  5.4s
+  镜头：MS 黄色赎罪者与他的窗口 size 6。
+  动作：黄色赎罪者 ANIM flagellate 速度 0.5×、幅度 0.5×；窗口女人们 MOTE 自制 'assobio'（嘘声）×3，其中一人 THROW Item 菜叶（抛物线落在他脚边）。
+  旁白：N056 @09:41.0 (4.1s) “E se o braço não bate…”
+
+E01-S04-SH46  [09:46.4 – 10:12.4]  26.0s
+  镜头：竖构图 MS (90,104.5) size 6，同时框住窗口 W_Lover (90,105) 与窗下赎罪者 (90,103)。
+  动作：绿色赎罪者到 (90,103) FACE N，POSE kneel，ANIM flagellate 2× 速度，大量血 filth；MOTE 自制 'urro'（公牛嚎叫波纹）。情人（窗后 (90,106)）ANIM tremble 持续；母亲 (89,106)、表姐妹 (91,106)、女仆 (90,107) FACE 情人。在旁白 'Um espasmo lá em baixo / cá em cima' 处，赎罪者与情人头顶同步 FLECK 心形 ×3（节拍一致）。
+  旁白：N057 @09:46.4 (24.4s) “O penitente chega debaixo da janela…”
+  备注：按用户尺度要求直接表现。
+
+E01-S04-SH47  [10:12.4 – 10:22.5]  10.1s
+  镜头：WS size 10。
+  动作：主教 + 华盖到达，ANIM bless（自制十字 fleck）。情人停止 tremble。绿色赎罪者起身，停止鞭打，MOVE 向东离开；离开时 ANIM shrug。
+  旁白：N058 @10:12.4 (8.1s) “O bispo abençoa. A mulher fica…”
+
+E01-S04-SH48  [10:22.5 – 10:38.5]  16.0s
+  镜头：存档 E01-S04e（傍晚）。WS PS size 14 → 两人相遇处 MS size 7。
+  动作：太太与女仆（Apparel 自制 'Manto' 黑斗篷，只露眼睛）从 CH 门 (40,140) MOVE → 中途 (100,112)。男人1 从巷口 (102,118) 出现，与太太一起 MOVE 进凹室 Alcove1 (104,118)，心形 fleck ×2；男人2 与女仆进 Alcove2 (98,118)，心形 fleck ×2。5s 后两组出来，太太与女仆在耶稣会门 (160,150)（今作第二座教堂）前会合，互相 ANIM nod。
+  旁白：N059 @10:23.0 (14.4s) “Na Quaresma, as mulheres podem ir…”
+  空镜：旁白前 0.5s；旁白后 0.5s
+
+E01-S04-SH49  [10:38.5 – 10:52.7]  14.2s
+  镜头：夜。小屋 (170–179,120–129) 室内 MS size 5；N061 时 CU '7' size 3，后期定格。
+  动作：丈夫 LAYDOWN 床，假睡；门开，太太与女仆持蜡烛进入（光）。丈夫 ANIM wake（坐起）。太太 MOTE speech；在 'sete igrejas' 处她头顶 FLECK 自制数字 '7'（金色，停留 3s）。
+  旁白：N060 @10:38.5 (8.9s) “Em casa, o marido finge que…”
+        N061 @10:48.2 (1.5s) “Sete. Guardem este número.…”
+  备注：‘七’是全剧母题（七个太阳、七个月亮）。
+
+E01-S04-SH50  [10:52.7 – 11:02.4]  9.7s
+  镜头：存档 E01-S04f（M1 Q，白天）。MS size 6。
+  动作：王后 POSE kneel 跪凳祈祷；侍女×2 侍立。HEDIFF add Pregnant（Biotech），腹部上方一次柔光 fleck。国王在回廊 G 从门口 MOVE 经过 (112,170)，不进门。
+  旁白：N062 @10:53.2 (8.1s) “As rainhas não têm esta folga.…”
+  空镜：旁白前 0.5s；旁白后 0.5s
+
+E01-S04-SH51  [11:02.4 – 11:22.0]  19.6s
+  镜头：存档 E01-S04g。FILTER dream。WS (130,50) size 14 → 骑士到达时 CUT MCU 唐·弗朗西斯科 size 5（火把照脸），定 1s，FADE 黑。
+  动作：M1 广场 夜。马车 Coche（自制 MovingProp，前套 vanilla 马×2 ATTACH）沿 (100,50)→(160,50) 行驶，速度 1.2；王后 ATTACH 在车内（可见上半身）。卫兵×6 持矛（vanilla Spear，drafted 显示）夹护，火把手×2（自制持火把，带光）。唐·弗朗西斯科 MOUNT vanilla 马，持火枪，从 (185,85) 暗处 GALLOP 冲来，穿过卫兵（被经过的卫兵 ANIM stagger），在车门旁 (130,52) 停下，马 ANIM rear。
+  旁白：N063【可选】 @11:02.4 (15.6s) “E sonha outra vez. Vai de…”
+  备注：MOUNT 系统同样用于 E09 及以后的王室出行。
+
+==================================================================
+E01-S05  存档 E01-S05_Jerez  [11:22.0 – 12:21.9]
+  地图：M9-J 赫雷斯战场
+  时间与光：白天 14:00，阴｜天气：阴天，秋季｜滤镜：无
+  在场：巴尔塔萨（26 岁，双手完整）；葡军×30；西军×30；西班牙骑兵×8；军医、助手
+  说明：闪回。秋季树叶。结尾跳到冬季（同一地图下雪）。
+==================================================================
+
+E01-S05-SH52  [11:22.0 – 11:36.2]  14.2s
+  镜头：AERIAL (60,60) size 35；'infantaria' 处 PUSH 到葡军阵线 (60,40) size 14。
+  动作：葡军×30（自制蓝色军服 + 三角帽）列于 z=40, x 30–90；西军×30（白色军服）列于 z=85。全部静止待命。
+  旁白：N064 @11:22.5 (2.2s) “Entretanto, longe dali, há uma guerra.…”
+        N065 @11:25.3 (9.6s) “É a guerra para decidir se…”
+  空镜：旁白前 0.5s；旁白后 0.5s
+
+E01-S05-SH53  [11:36.2 – 11:46.2]  10.0s
+  镜头：WS size 18，跟随葡军推进；骑兵冲锋时 SHAKE 轻。
+  动作：葡军 MOVE N 10 格，边走边 SHOOT（自制火枪 'Mosquete'，可由 vanilla 步枪换贴图）目标西军；西军回击。脚本 KILL 葡军 8 人（Gunshot）。西班牙骑兵×8（MOUNT）从 (115,60) 冲向葡军侧翼；葡军 FLEE → 向西南跑出画面。
+  旁白：N066 @11:36.2 (8.9s) “Outubro de mil setecentos e dez.…”
+
+E01-S05-SH54  [11:46.2 – 11:49.9]  3.7s
+  镜头：CUT → MCU 巴尔塔萨 (60,48) size 5（在溃退开始之前的时刻，可用同一存档另拍）。
+  动作：巴尔塔萨 DRAFTED 持火枪，SHOOT 一次。
+  旁白：N067 @11:46.2 (3.0s) “Este é Baltasar Mateus, a quem…”
+  备注：后期在此叠人名条：Baltasar Mateus · «Sete-Sóis»。
+
+E01-S05-SH55  [11:49.9 – 11:55.1]  5.2s
+  镜头：CU size 4，命中瞬间 SHAKE 0.3s。
+  动作：DAMAGE Gunshot → LeftHand（足以摧毁该部位）→ vanilla 生成 MissingBodyPart 与出血。血 fleck 喷溅。巴尔塔萨 ANIM stagger，POSE kneel，FACE 左臂方向。
+  旁白：N068 @11:49.9 (2.2s) “Uma bala desfaz-lhe a mão esquerda.…”
+
+E01-S05-SH56  [11:55.1 – 12:09.3]  14.2s
+  镜头：MS 野战帐篷 J_Surgeon (25,15) size 6；'dois meses depois' 处 CUT → 同地图雪景 WS (60,40) size 10。
+  动作：巴尔塔萨 LAYDOWN 手术台（自制木台）；助手按住（站在旁边 ANIM hold）。军医 PLAY vanilla surgery effecter 6s。军医 ANIM interact（涂草药），一盘 Item 'Mão esquerda'（自制断手）出现在旁边托盘。雪景：WEATHER SnowGentle，季节冬；巴尔塔萨站立，低头看左腕（FACE 左）。
+  旁白：N069 @11:55.1 (12.6s) “O cirurgião, que era bom, nem…”
+
+E01-S05-SH57  [12:09.3 – 12:21.9]  12.6s
+  镜头：CU 托盘上的断手 size 3 → PAN 到帐篷外坐在地上的伤兵与尸体 size 8；FADE 黑。
+  动作：伤兵×5 POSE sit 在地；尸体×4。
+  旁白：N070 @12:09.3 (9.6s) “A mão ficou, uma parte em…”
+
+==================================================================
+E01-S06  存档 E01-S06_Regresso  [12:21.9 – 14:43.0]
+  地图：M9 阿连特茹→佩贡埃斯→阿尔德加莱加；梦境用 M9-J
+  时间与光：多段：冬→春白天；松林午后；夜｜天气：多段｜滤镜：梦境用 dream_red
+  在场：巴尔塔萨；路人×6；铁匠；马鞍匠；劫匪A（刀）、劫匪B（棍）；酒馆老板
+  说明：子存档：S06a 埃武拉；S06b 松林；S06c 阿尔德加莱加夜；S06d 赫雷斯之梦。左手自此为缺失状态。
+==================================================================
+
+E01-S06-SH58  [12:21.9 – 12:31.3]  9.4s
+  镜头：存档 E01-S06a。MS 埃武拉教堂门口 E_Beg (215,47) size 7，FIX。
+  动作：巴尔塔萨 POSE sit，右手方向放 Item 碗。路人×6 依次 GIVE Item 'Moeda'。时间快进：雪→雨→晴→开花（WEATHER + 季节，共 6s），碗前硬币堆增长（Item 堆叠数 1→30）。
+  旁白：N071 @12:22.4 (7.8s) “Sem mão, não há tropa. Baltasar…”
+  空镜：旁白前 0.5s；旁白后 0.5s
+
+E01-S06-SH59  [12:31.3 – 12:45.2]  13.9s
+  镜头：MS 铁匠铺 (227,48) size 6；'Duas mãos esquerdas' 处 CU 巴尔塔萨手中物品 size 3。
+  动作：铁匠在 vanilla FueledSmithy 做工（工作效果器）；马鞍匠在旁缝皮带。铁匠 GIVE Item 'Gancho'，再 GIVE Item 'Espigão'。巴尔塔萨 HOLD 每件 1.5s（自制手持渲染）。'discordar' 处长钉尖端闪光 fleck。
+  旁白：N072 @12:31.3 (8.1s) “Na primavera, levanta a encomenda. Um…”
+        N073 @12:40.0 (4.1s) “Ferro temperado, correias de couro até…”
+
+E01-S06-SH60  [12:45.2 – 13:11.5]  26.3s
+  镜头：FOLLOW 巴尔塔萨 size 10（长跟拍）；N075 起 RISE 到 size 30，人物变小。
+  动作：巴尔塔萨把两件铁器 STOW 入背袋（Item 消失，背袋 Apparel 贴图换为 'cheio'）。沿王家大道 z 45–49 MOVE W speed=walk，春季野花。
+  旁白：N074 @12:45.2 (12.6s) “Mas leva-os no alforge. Há horas…”
+        N075 @12:58.4 (11.1s) “Ninguém o espera em Lisboa. Nem…”
+
+E01-S06-SH61  [13:11.5 – 13:21.2]  9.7s
+  镜头：存档 E01-S06b（松林午后）。WS 松林沙地 size 12 → CU size 4。
+  动作：巴尔塔萨走进树荫 AMB_Shade (125,50)，POSE sit；取出 Espigão；ANIM bite（头部向左臂下探 ×3）；HEDIFF add ProstheticSpike → LeftHand（渲染节点显示长钉）。
+  旁白：N076 @13:12.0 (8.1s) “Depois de Pegões começa o pinhal,…”
+  空镜：旁白前 0.5s；旁白后 0.5s
+
+E01-S06-SH62  [13:21.2 – 13:27.2]  6.0s
+  镜头：MS size 7。
+  动作：劫匪A（vanilla Knife）从 (130,62)、劫匪B（vanilla Club）从 (118,38) JOG → (126,52)(124,48)。劫匪A MOTE speech；巴尔塔萨起身 ANIM headshake + MOTE speech；劫匪A、B MOTE speech。
+  旁白：N077 @13:21.2 (5.2s) “Saem-lhe dois homens ao caminho. Ele…”
+
+E01-S06-SH63  [13:27.2 – 13:40.3]  13.1s
+  镜头：MS size 6，打斗时 SHAKE 轻；N078 时 FIX。
+  动作：pre 段 5s 无旁白打斗：劫匪A MELEE 巴尔塔萨；交手 2 回合；巴尔塔萨以长钉 tool（stab）反击；脚本 DAMAGE Stab → 劫匪A Heart 致死。劫匪B BACKOFF 6 格。血 filth。
+  旁白：N078 @13:32.2 (7.0s) “Matou um. Como acabámos de sair…”
+  空镜：旁白前 5.0s；旁白后 0.5s
+
+E01-S06-SH64  [13:40.3 – 13:50.7]  10.4s
+  镜头：MS size 6。
+  动作：巴尔塔萨 POSE sit，HEDIFF swap Spike→Hook（ANIM bite 简短版）；DRAG 尸体（自制：尸体绘制在人物身后 1 格，随行拖动）→ 路边 (125,42)，放下。
+  旁白：N079 @13:40.3 (9.3s) “Convém, isso sim, dizer que a…”
+  备注：‘每只手各有用途’要让两次换装都看得清。
+
+E01-S06-SH65  [13:50.7 – 14:00.1]  9.4s
+  镜头：WS size 14，跟拍。
+  动作：巴尔塔萨沿路 MOVE W；劫匪B 在其后 8 格 FOLLOW 15 格，期间 MOTE anger ×4，随后停下继续 MOTE anger；巴尔塔萨始终不回头。
+  旁白：N080 @13:50.7 (7.0s) “O outro seguiu-o meia légua pelo…”
+
+E01-S06-SH66  [14:00.1 – 14:10.7]  10.6s
+  镜头：存档 E01-S06c（夜，月光）。酒馆 MS (40,55) size 5（3s）→ CUT 仓库 CU 车下 size 5。
+  动作：酒馆：巴尔塔萨坐桌 EAT Item 自制 'Sardinhas fritas'，再 EAT 'Tigela de vinho'。仓库：自制 Carroça（绘制层高于躺着的人物，可半遮盖）；巴尔塔萨 LAYDOWN 地面于车下，Apparel 'Capote' 斗篷，带长钉的左臂伸出（HEDIFF 重新 swap 回 Spike）。
+  旁白：N081 @14:00.6 (8.9s) “Em Aldegalega, o dinheiro já não…”
+  空镜：旁白前 0.5s；旁白后 0.6s
+
+E01-S06-SH67  [14:10.7 – 14:24.2]  13.5s
+  镜头：存档 E01-S06d。FILTER dream_red。FOLLOW 巴尔塔萨 size 8。
+  动作：M9-J 战场白天。巴尔塔萨（左腕已缺，梦里也不补回）DRAFTED 手持自制近战武器 'Mão esquerda'（断手），冲在葡军最前；西军遇到他即 ANIM knockdown 或 FLEE。
+  旁白：N082 @14:10.7 (11.9s) “Sonha com Jerez. Desta vez os…”
+
+E01-S06-SH68  [14:24.2 – 14:43.0]  18.8s
+  镜头：回 S06c。CU 车下 size 4，几乎全黑；N084 时环境光从黑转为黎明前深蓝（3s）。
+  动作：巴尔塔萨 ANIM wake（坐起一半，被车底挡住），解下长钉（HEDIFF remove），左臂收入斗篷，再 LAYDOWN。
+  旁白：N083 @14:24.2 (12.2s) “Acorda antes da madrugada, com dores…”
+        N084 @14:37.0 (3.0s) “Falta-lhe alguma coisa, é certo. Mas…”
+
+==================================================================
+E01-S07  存档 E01-S07_Barco  [14:43.0 – 16:34.8]
+  地图：M9 码头 → M9-T 特茹河
+  时间与光：日落 18:30–19:10，金色天光｜天气：晴，微风｜滤镜：无
+  在场：巴尔塔萨；船老大；桨手×4；潘加斯老夫妇；开玩笑的人；其他乘客×3
+  说明：子存档：S07a 上船（M9 西端码头）；S07b 河上（M9-T）；插入镜头 S07c 英国妓女上岸（M1 码头，白天，chronicle）。
+==================================================================
+
+E01-S07-SH69  [14:43.0 – 14:50.1]  7.1s
+  镜头：存档 E01-S07a。WS 码头 AL_Dock (6,50) size 10。
+  动作：渡船 Fragata（自制 MovingProp 5×12，三角帆，此刻帆落下）停在 (3,50)。船老大站在船尾 MOTE speech ×2。乘客陆续走上搭板 Prancha。
+  旁白：N085 @14:43.5 (5.9s) “No cais, o arrais grita que…”
+  空镜：旁白前 0.5s；旁白后 0.3s
+
+E01-S07-SH70  [14:50.1 – 14:59.7]  9.6s
+  镜头：MS 搭板 size 6。
+  动作：巴尔塔萨 JOG 上搭板，ATTACH 到座位 Seat_B（船体相对坐标 +1,+2）；铁器声为后期音效标记 SFX clink。开玩笑的人（Seat_J -1,+3）MOTE speech；周围乘客 MOTE laugh。
+  旁白：N086 @14:50.1 (8.5s) “Baltasar sobe a prancha, e os…”
+
+E01-S07-SH71  [14:59.7 – 15:15.8]  16.1s
+  镜头：MCU size 5 → CU 长钉 size 3（1.5s）→ 回 MCU。
+  动作：巴尔塔萨 FACE 开玩笑的人，HOLD Item 'Espigão'（贴图带暗红污迹）。开玩笑的人 FACE 反方向，MOTE pray，之后整场不再出任何气泡（脚本对他 MUTE）。
+  旁白：N087 @14:59.7 (14.1s) “Baltasar olha para ele e tira…”
+
+E01-S07-SH72  [15:15.8 – 15:37.1]  21.3s
+  镜头：存档 E01-S07b（M9-T）。pre 3s：WS size 12 船起航；之后 MCU 三人 size 5，相机 FOLLOW 船体。
+  动作：船帆贴图 落→起；MovingProp 沿 (235,45)→(30,45) 开始移动（全程约 110s，速度见下）；轻微摇晃（绘制旋转 ±1.5°，0.3Hz）。潘加斯老妇 GIVE Item 'Pão com conduto' → 巴尔塔萨；巴尔塔萨 EAT（坐姿）。
+  旁白：N088 @15:18.8 (16.7s) “Ao lado, um casal de velhos…”
+  空镜：旁白前 3.0s；旁白后 0.8s
+  备注：MovingProp 速度 = 剩余路径 / 剩余计划时长，由导演自动计算，保证 SH76 末尾抵达西岸附近。
+
+E01-S07-SH73  [15:37.1 – 15:55.6]  18.5s
+  镜头：FOLLOW 船 size 8；N090 时 CUT 插入 E01-S07c（M1 码头白天，FILTER chronicle）WS size 12，4s。
+  动作：船老大 MOTE speech ×3。插入：英国船 Navio（自制大型 MovingProp，停泊）放下跳板，金发女人×50 从跳板鱼贯 SPAWN 并走上码头散开。
+  旁白：N089 @15:37.1 (14.1s) “O arrais conta uma história. Uma…”
+        N090【可选】 @15:51.8 (2.2s) “Hoje, chamar-se-ia a isto otimização logística.…”
+
+E01-S07-SH74  [15:55.6 – 16:14.3]  18.7s
+  镜头：MS 船中部 size 6。
+  动作：桨手×4 ANIM row（左右舷各 2，随桨摆动）+ MOTE laugh。巴尔塔萨 ANIM stretch（纵向缩放 1.05 脉冲两次）。老妇 FACE 船外。老头 FLECK '?' 后 '!'，然后 MOTE speech；巴尔塔萨 MOTE speech。
+  旁白：N091 @15:55.6 (16.7s) “Os remadores riem. Sete-Sóis espreguiça-se como…”
+
+E01-S07-SH75  [16:14.3 – 16:34.8]  20.5s
+  镜头：FOLLOW 船 size 8 → 全句时长 PULL 到 size 40（船居中），最后 3s FIX，画面左缘出现里斯本城墙与城堡。
+  动作：LIGHT override：金色夕照（天空颜色 #FFB347，强度 0.9）。水面自制闪光 fleck。海豚：自制 fleck 'Golfinho'（黑亮弓背），两对，各沿抛物线横穿船头，2s 一次，交替 4 次。
+  旁白：N092 @16:16.3 (13.0s) “O sol põe o rio todo…”
+  空镜：旁白前 2.0s；旁白后 3.0s
+  备注：‘城市浮在水上’：西岸 x 0–25 的城墙要高（自制 'Muralha alta' 墙体），屋顶密。
+
+==================================================================
+E01-S08  存档 E01-S08_Lisboa  [16:34.8 – 18:32.8]
+  地图：M1 里贝拉/鱼市/肉店/王宫广场 → M3 街道
+  时间与光：下午 16:00–18:30｜天气：晴｜滤镜：无
+  在场：巴尔塔萨；S07 渡船全员；卖鱼女×8；黑人搬运工×8；监工×2；群众×30；酒馆老板；屠夫；王宫卫兵×2；英国女人×12；黑人巡逻兵×4；路人；方济各会施汤修士；乞丐×6
+  说明：子存档：S08a 码头与鱼市；S08b 肉店与广场；S08c 去罗西奥的街；S08d 施汤（CH 门口改装成城内方济各会修道院）。插入：国王打猎（M9 松林，2 秒）。
+==================================================================
+
+E01-S08-SH76  [16:34.8 – 16:43.8]  9.0s
+  镜头：存档 E01-S08a（M1）。MS 码头 M1_Ribeira_Landing (35,31) size 7。
+  动作：渡船 MovingProp 从 (35,10) 驶到 (35,25)；自制 fleck 缆绳抛出。老夫妇 DETACH → MOVE 到码头；巴尔塔萨站在旁边 ANIM help（侧身）。巴尔塔萨经过开玩笑的人时 ANIM step_on，开玩笑的人 ANIM flinch，无气泡。巴尔塔萨 DETACH → MOVE 上码头 (35,33)。
+  旁白：N093 @16:35.3 (7.4s) “Na Ribeira, Baltasar ajuda o casal…”
+  空镜：旁白前 0.5s；旁白后 0.5s
+
+E01-S08-SH77  [16:43.8 – 16:56.4]  12.6s
+  镜头：WS 鱼市 (45,55) size 14 → PUSH 到 size 8。
+  动作：卖鱼女×8 在摊位 MOTE speech 循环，Apparel 自制金首饰（亮金色手镯、项链、长耳环）。黑人搬运工×8 CARRY Item 'Canastra' 往返码头—摊位，身后滴水 fleck + filth 'escamas'。监工×2 MOTE speech，偶尔 ANIM hit 搬运工。群众×30 WANDER。
+  旁白：N094 @16:43.8 (11.5s) “Lisboa inteira parece estar na praça…”
+
+E01-S08-SH78  [16:56.4 – 17:09.0]  12.6s
+  镜头：MS 酒馆 (60,75) size 6 → FOLLOW 巴尔塔萨 size 8。
+  动作：巴尔塔萨 GIVE Item 'Moeda' → 酒馆老板；老板 GIVE Item 'Sardinhas no pão'。巴尔塔萨边走边吃（每 2s 一个吃 fleck，Item 数量 3→0），MOVE → 王宫广场方向，抵达 (90,60) 前吃完。
+  旁白：N095 @16:56.4 (11.5s) “Quatro anos de fome de soldado…”
+
+E01-S08-SH79  [17:09.0 – 17:22.5]  13.5s
+  镜头：存档 E01-S08b。肉店门内 MS (155,114) size 5，过肩构图（巴尔塔萨在前景下方）；结尾 CU 背袋 size 3（钩子闪光 fleck）。
+  动作：肉店内：自制 Carcaça（挂在钩上的牛、猪半扇）×6；屠夫 ANIM chop。墙面白瓷砖（自制地板/墙贴图）。巴尔塔萨站门口 (155,110) FACE N 不动。
+  旁白：N096 @17:09.0 (11.9s) “Entra num açougue e fica a…”
+
+E01-S08-SH80  [17:22.5 – 17:41.8]  19.3s
+  镜头：WS 王宫广场 (130,80) size 22；'foi à caça' 处插入 2s：M9 松林，国王骑马（MOUNT）开枪，鹿（vanilla）倒下；回到广场后 PUSH 到巴尔塔萨 size 6。
+  动作：王宫正门卫兵×2。广场上人流：修士抬肩舆、巡逻兵、商人搬箱子（CARRY），全部 WANDER；巴尔塔萨站在中央 (130,70) 不动，FACE N 看王宫。
+  旁白：N097【可选】 @17:22.5 (9.6s) “Ali está o palácio. O rei,…”
+        N098【可选】 @17:32.7 (6.7s) “Baltasar também já teve uma espingarda.…”
+
+E01-S08-SH81  [17:41.8 – 17:57.0]  15.2s
+  镜头：存档 E01-S08c（M3 PS，下午）。MS size 9 跟拍队伍。
+  动作：英国女人×12（金发，蓝/绿/灰眼不可见无妨，浅色裙）MOVE E；黑人巡逻兵×4 DRAFTED 持 vanilla Club 在其后驱赶（偶尔 ANIM push）。路人 MOTE speech 对巴尔塔萨；巴尔塔萨 MOTE speech。
+  旁白：N099 @17:41.8 (14.1s) “A caminho do Rossio, passam doze…”
+
+E01-S08-SH82  [17:57.0 – 18:18.7]  21.7s
+  镜头：MCU 巴尔塔萨 size 5；N101 的 'O rei' 处 CUT → S02 存档国王许愿 MCU 1.5s；'O soldado' 处 CUT 回巴尔塔萨。
+  动作：巴尔塔萨目送她们，头顶 FLECK 自制 '心形蜡烛' 图标 2s。
+  旁白：N100 @17:57.0 (13.0s) “Baltasar promete a São Bento uma…”
+        N101 @18:10.8 (5.9s) “O rei promete um convento. O…”
+
+E01-S08-SH83  [18:18.7 – 18:32.8]  14.1s
+  镜头：存档 E01-S08d（日落）。MS CH 门口 (40,139) size 7。
+  动作：乞丐×6 排队；方济各会修士持锅 GIVE Item 'Tigela de sopa'。巴尔塔萨 EAT（站姿）。
+  旁白：N102【可选】 @18:18.7 (11.1s) “Ao fim da tarde, bebe uma…”
+
+==================================================================
+E01-S09  存档 E01-S09_Esperanca  [18:32.8 – 20:34.4]
+  地图：M3 艾斯贝兰萨修道院围墙
+  时间与光：黄昏 19:30 → 夜 23:00，篝火｜天气：晴｜滤镜：插入段用 memory
+  在场：巴尔塔萨；若昂·埃尔瓦斯；流浪汉×4（含花白胡子）；修女×12（墙内）；插入段：科托维亚路人×6、卫兵×1、乡下父亲×1
+  说明：插入的回忆镜头另存 E01-S09b（M3 科托维亚区，白天）与 E01-S09c（M9 东部农舍，夜）。
+==================================================================
+
+E01-S09-SH84  [18:32.8 – 18:41.8]  9.0s
+  镜头：存档 E01-S09。黄昏 → 夜（时间快进 4s）。MS (140,60) size 7。
+  动作：若昂·埃尔瓦斯（40 多岁，灰白胡须，旧军服 + 斗篷）与巴尔塔萨相遇，交替 MOTE speech ×2，一起 MOVE → 屋檐 (150,36)。
+  旁白：N103 @18:33.3 (7.4s) “À noite, faz amizade com João…”
+  空镜：旁白前 0.5s；旁白后 0.5s
+
+E01-S09-SH85  [18:41.8 – 18:56.7]  14.9s
+  镜头：WS 屋檐 (150,36) size 10，上缘露出修道院围墙 z=40；'troca o espigão' 处 CUT CU size 3.5。
+  动作：流浪汉×4 坐在篝火 (150,31) 周围。巴尔塔萨卸下背袋 POSE sit，HEDIFF swap Spike→Hook（ANIM bite），长钉 STOW。
+  旁白：N104 @18:41.8 (13.3s) “Dormem debaixo de uns alpendres abandonados,…”
+
+E01-S09-SH86  [18:56.7 – 19:07.8]  11.1s
+  镜头：PAN 横扫火边面孔 size 5，从左到右。
+  动作：六人围坐，MOTE speech 轮流。
+  旁白：N105【可选】 @18:56.7 (10.0s) “Fala-se de crimes. Não dos grandes,…”
+
+E01-S09-SH87  [19:07.8 – 19:37.0]  29.2s
+  镜头：+0s MCU 讲述者 size 5；N106 中段起 CUT 插入 E01-S09b（FILTER memory，白天）：科托维亚空地 WS size 10 → 各处 CU；N107 'No dia seguinte' 处换到门口麻袋 MS size 5。
+  动作：插入：自制 Item 'Pedaço'（像素风人体残块，多种贴图）散落在显眼处（墙根、路边、台阶上），血 filth；路人×6 发现，ANIM recoil，MOTE '!'。门口：麻袋 Item；卫兵打开（Item 贴图换为 open），旁边一个用缎带系着的小襁褓 Item。
+  旁白：N106 @19:07.8 (13.0s) “E então alguém conta o caso…”
+        N107 @19:21.3 (14.1s) “No dia seguinte, a cabeça e…”
+  备注：尺度：游戏贴图能表现到哪一步就到哪一步；残块用清晰可辨的像素贴图。
+
+E01-S09-SH88  [19:37.0 – 19:46.7]  9.7s
+  镜头：MCU 若昂·埃尔瓦斯 size 5。
+  动作：若昂·埃尔瓦斯 MOTE speech ×2。
+  旁白：N108 @19:37.0 (8.5s) “Os cirurgiões disseram que era obra…”
+
+E01-S09-SH89  [19:46.7 – 20:04.7]  18.0s
+  镜头：MCU 花白胡子 size 5；'enterrou em casa um porco' 处插入 E01-S09c（FILTER memory，夜，M9 东部农舍）MS size 6，3s。
+  动作：花白胡子 MOTE speech。插入：父亲在院子挖坑（vanilla Grave 外观），把 vanilla 猪尸体放入，填土。
+  旁白：N109 @19:46.7 (15.6s) “O de barba grisalha diz que…”
+
+E01-S09-SH90  [20:04.7 – 20:16.6]  11.9s
+  镜头：PAN 北移越过围墙 → 墙内礼拜堂 (150,50) size 9。
+  动作：修女×12（Ideology 修女服）在亮着的礼拜堂内排成唱诗班，自制音符 fleck 上升。
+  旁白：N110 @20:05.7 (8.5s) “Do outro lado do muro, as…”
+  空镜：旁白前 1.0s；旁白后 1.2s
+
+E01-S09-SH91  [20:16.6 – 20:25.3]  8.7s
+  镜头：MCU 巴尔塔萨 size 5 → CUT MCU 若昂·埃尔瓦斯 size 5。
+  动作：巴尔塔萨 MOTE speech；若昂·埃尔瓦斯 MOTE speech。
+  旁白：N111 @20:16.6 (2.6s) “Na guerra há mais piedade, diz…”
+        N112 @20:20.0 (3.3s) “A guerra ainda é uma criança,…”
+  备注：两句是本集的收束台词，镜头一人一句。
+
+E01-S09-SH92  [20:25.3 – 20:34.4]  9.1s
+  镜头：WS size 10 → PULL 到 size 20；末尾 FADE 黑 1.5s。
+  动作：六人 LAYDOWN 地面（vanilla Bedroll 或直接睡地）；篝火燃料递减，光变弱；Zzz fleck。
+  旁白：N113 @20:25.3 (4.1s) “Depois disto, não há mais nada…”
+
+==================================================================
+E01-S10  存档 E01-S10_Gancho  [20:34.4 – 20:50.0]
+  地图：M2 罗西奥
+  时间与光：黎明 06:00｜天气：雾｜滤镜：无
+  在场：搬柴工×3；卖瓜人×1
+  说明：结尾钩子。
+==================================================================
+
+E01-S10-SH93  [20:34.4 – 20:43.5]  9.1s
+  镜头：存档 E01-S10。黎明雾。WS (75,75) size 18 → PUSH 到 size 10 对准火刑柱。
+  动作：空荡的罗西奥。搬柴工×3 CARRY vanilla WoodLog 往火刑柱 Stake（自制）周围码放 WoodPile（自制）。
+  旁白：N114 @20:36.4 (3.0s) “No domingo, no Rossio, há auto…”
+        N115 @20:40.2 (1.1s) “Vai-se queimar gente.…”
+  空镜：旁白前 2.0s；旁白后 1.0s
+
+E01-S10-SH94  [20:43.5 – 20:50.0]  6.5s
+  镜头：FIX size 10；末尾 CUT_BLACK。
+  动作：广场边缘 (100,70)，卖瓜人摆出摊位，放下 Item 自制 'Melancia'×6。
+  旁白：N116 @20:43.5 (1.0s) “Leve merenda.…”
+  备注：黑场后后期字卡 5s：No próximo episódio · Como te chamas? / 下集：你叫什么名字？
+
+
+六、拍摄顺序建议（按地图分组，减少换景）
+------------------------------------------------------------------
+  第 1 天  M1：S01、S02、S03a/c、S04f、SH39 宴桌、S08a/b（王宫、广场、鱼市一张图拍完）
+  第 2 天  M1 夜景与梦：S03b、S04g；M1 码头白天插入 S07c
+  第 3 天  M3：S04a–e、S08c/d、S09、S09b
+  第 4 天  M9 / M9-J / M9-T：S05、S06a–d、S07a/b、S09c、SH80 国王打猎插入
+  第 5 天  M2：S00、S10
+  插入镜头（同一存档顺便录 3–5 秒素材即可）：SH06 私生子、SH19 四个快切、SH27 流浪汉臭虫、SH82 国王许愿
+
+
+七、第 1 集 Mod 开发里程碑（按拍摄所需顺序）
+------------------------------------------------------------------
+  M1  导演核心 + 锚点 + 镜头 + 日志 + 关闭随机/需求/AI → 能拍 S01、S02（纯走位与气泡）
+  M2  Hediff 义肢渲染 + swap + 战斗结果脚本化 → 能拍 S05、S06
+  M3  MovingProp + ATTACH → 能拍 S07（渡船）、马车、华盖
+  M4  游行系统 + Window + 着色 Apparel → 能拍 S04 游行
+  M5  滤镜 + 自制 fleck + 场景快照（蓝图）→ 梦境与轶事段
+  M6  其余物件贴图（P1/P2）
+
+
+八、待确认（不影响开工）
+------------------------------------------------------------------
+  1. 时长：本集按全部旁白估算偏长（见文件开头）。我倾向保留全文，先出片看节奏，再按【可选】名单删。
+  2. 片头字卡、人名条、插画卡、下集预告字卡都由后期完成；如果你希望全部在游戏里实现，告诉我，我把它们改成 Mod 的 UI 叠层指令。
+  3. 大纲把冷开场标为“可选”。我保留了它，因为它和结尾钩子一起把全剧的火刑主线挂在第一集上。
