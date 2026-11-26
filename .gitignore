@@ -1,0 +1,4 @@
+Mod/Source/**/obj/
+Mod/Source/**/bin/
+*.user
+.vs/

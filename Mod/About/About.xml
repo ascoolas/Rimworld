@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>修道院纪事 · 导演 (Memorial Director)</name>
+  <author>rimworld_memorial_do_convento</author>
+  <packageId>MemorialDoConvento.Director</packageId>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+      <downloadUrl>https://github.com/pardeike/HarmonyRimWorld/releases/latest</downloadUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>brrainz.harmony</li>
+  </loadAfter>
+  <description>把 RimWorld 当成木偶剧场：按剧本文件自动调度角色走位、朝向、镜头、天气和时刻，用于拍摄《修道院纪事》系列视频。
+
+同时提供“拍摄模式”：屏蔽一切随机事件、精神崩溃、灵感和随机社交，冻结角色需求，让没有接到指令的角色原地待命。
+
+仅用于拍摄，不建议在正常游戏存档中启用。</description>
+</ModMetaData>

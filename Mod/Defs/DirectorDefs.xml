@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!-- 屏幕底部的“导演”按钮 -->
+  <MainButtonDef>
+    <defName>MemorialDirector</defName>
+    <label>导演</label>
+    <description>打开导演面板：选择剧本、检查剧本、开拍、停止。</description>
+    <tabWindowClass>MemorialDirector.MainTabWindow_Director</tabWindowClass>
+    <order>999</order>
+    <canBeTutorDenied>false</canBeTutorDenied>
+  </MainButtonDef>
+
+  <!-- 角色“待命”：原地站着，可以持续面向某个目标 -->
+  <JobDef>
+    <defName>MemorialDirector_Hold</defName>
+    <driverClass>MemorialDirector.JobDriver_Hold</driverClass>
+    <reportString>听候导演安排。</reportString>
+    <casualInterruptible>false</casualInterruptible>
+    <suspendable>false</suspendable>
+    <alwaysShowWeapon>false</alwaysShowWeapon>
+  </JobDef>
+
+  <!-- 开拍快捷键：运行导演面板里最后选中的剧本（默认 F7） -->
+  <KeyBindingDef>
+    <defName>MemorialDirector_Start</defName>
+    <label>导演：开拍（最后选中的剧本）</label>
+    <category>MainTabs</category>
+    <defaultKeyCodeA>F7</defaultKeyCodeA>
+  </KeyBindingDef>
+
+  <!-- 停止拍摄的快捷键（默认 F8，可在 选项→按键设置 里修改） -->
+  <KeyBindingDef>
+    <defName>MemorialDirector_Stop</defName>
+    <label>导演：停止拍摄</label>
+    <category>MainTabs</category>
+    <defaultKeyCodeA>F8</defaultKeyCodeA>
+  </KeyBindingDef>
+
+</Defs>
