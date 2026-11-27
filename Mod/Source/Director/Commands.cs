@@ -367,6 +367,8 @@ namespace MemorialDirector
             }
             else
             {
+                // 断腕上不能直接加东西：先把这个部位“恢复”，再装义肢
+                if (p.health.hediffSet.PartIsMissing(part)) p.health.RestorePart(part, null, true);
                 p.health.AddHediff(DefDatabase<HediffDef>.GetNamed(hediffDefName), part);
             }
             p.Drawer.renderer.SetAllGraphicsDirty();

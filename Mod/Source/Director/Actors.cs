@@ -23,6 +23,7 @@ namespace MemorialDirector
         public int seed = 1;
 
         public string bodyType, headType, hair, beard;
+        public string childhood, adulthood;
         public Color? hairColor, skinColor;
 
         public class Item { public string def, stuff; public Color? color; }
@@ -66,6 +67,8 @@ namespace MemorialDirector
             c.nick = A(root, "昵称") ?? c.first;
             var g = A(root, "性别");
             c.gender = g == "女" || g == "Female" ? Gender.Female : Gender.Male;
+            c.childhood = A(root, "童年");
+            c.adulthood = A(root, "成年");
             if (A(root, "年龄") is string ageText && float.TryParse(ageText, NumberStyles.Float, CultureInfo.InvariantCulture, out var age)) c.age = age;
             if (A(root, "种子") is string seedText && int.TryParse(seedText, out var seed)) c.seed = seed;
             else c.seed = c.first.GetHashCode();
@@ -107,6 +110,8 @@ namespace MemorialDirector
             var errs = new List<string>(errors);
             string who = $"演员卡“{DisplayName}”";
             if (bodyType != null && DefDatabase<BodyTypeDef>.GetNamedSilentFail(bodyType) == null) errs.Add($"{who}：找不到体型 {bodyType}");
+            if (childhood != null && DefDatabase<BackstoryDef>.GetNamedSilentFail(childhood) == null) errs.Add($"{who}：找不到童年背景 {childhood}");
+            if (adulthood != null && DefDatabase<BackstoryDef>.GetNamedSilentFail(adulthood) == null) errs.Add($"{who}：找不到成年背景 {adulthood}");
             if (headType != null && DefDatabase<HeadTypeDef>.GetNamedSilentFail(headType) == null) errs.Add($"{who}：找不到头型 {headType}");
             if (hair != null && DefDatabase<HairDef>.GetNamedSilentFail(hair) == null) errs.Add($"{who}：找不到发型 {hair}");
             if (beard != null && DefDatabase<BeardDef>.GetNamedSilentFail(beard) == null) errs.Add($"{who}：找不到胡子 {beard}");
@@ -136,6 +141,8 @@ namespace MemorialDirector
             root.SetAttributeValue("性别", p.gender == Gender.Female ? "女" : "男");
             root.SetAttributeValue("年龄", p.ageTracker.AgeBiologicalYears);
             root.SetAttributeValue("种子", seed);
+            if (p.story?.Childhood != null) root.SetAttributeValue("童年", p.story.Childhood.defName);
+            if (p.story?.Adulthood != null) root.SetAttributeValue("成年", p.story.Adulthood.defName);
 
             var look = new XElement("外貌");
             if (p.story != null)
@@ -261,6 +268,10 @@ namespace MemorialDirector
 
             p.Name = new NameTriple(c.first, c.nick ?? c.first, c.last ?? "");
 
+            // 背景故事（童年 / 成年）：可以写本 Mod 的 MD_ 背景，也可以写游戏自带背景的 defName
+            if (c.childhood != null && DefDatabase<BackstoryDef>.GetNamedSilentFail(c.childhood) is BackstoryDef ch) p.story.Childhood = ch;
+            if (c.adulthood != null && DefDatabase<BackstoryDef>.GetNamedSilentFail(c.adulthood) is BackstoryDef ad) p.story.Adulthood = ad;
+
             // 去掉随机特性和随机伤病（特性会影响走路速度，伤病会影响外观）
             foreach (var t in p.story.traits.allTraits.ToList()) p.story.traits.RemoveTrait(t);
             foreach (var h in p.health.hediffSet.hediffs.ToList()) p.health.RemoveHediff(h);
@@ -298,8 +309,14 @@ namespace MemorialDirector
                     missing.IsFresh = false; // 旧伤，不流血
                     p.health.AddHediff(missing, part);
                 }
-                else p.health.AddHediff(def, part);
+                else
+                {
+                    if (part != null && typeof(Hediff_AddedPart).IsAssignableFrom(def.hediffClass) && p.health.hediffSet.PartIsMissing(part))
+                        p.health.RestorePart(part, null, true);
+                    p.health.AddHediff(def, part);
+                }
             }
+            p.Notify_DisabledWorkTypesChanged();
             return p;
         }
 

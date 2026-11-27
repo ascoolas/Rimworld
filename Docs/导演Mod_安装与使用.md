@@ -3,7 +3,7 @@
 这个 Mod 把 RimWorld 变成木偶剧场：你写一份剧本文件，Mod 按时间点让角色走位、转身，同时控制镜头、天气和时刻。
 拍摄期间游戏不会发生任何随机事件，角色也不会自己乱动。
 
-> 当前版本：v0.2。只支持 **RimWorld 1.6**。
+> 当前版本：v0.3。只支持 **RimWorld 1.6**。
 
 ---
 
@@ -15,16 +15,28 @@ Steam 库 → 右键 RimWorld → 属性 → 测试版 → 选“无”（或 1.
 ### 2. 订阅 Harmony
 在 Steam 创意工坊搜索 **Harmony**（作者 Brrainz）并订阅。几乎所有 Mod 都依赖它。
 
-### 3. 放入导演 Mod
-1. 打开 GitHub 仓库 `ascoolas/rimworld`，切换到分支 `claude/director-mod-skeleton`，
-   点绿色的 **Code → Download ZIP** 下载。
-2. 解压后，找到里面的 `Mod` 文件夹。
-3. 把它复制到游戏的 Mods 文件夹，并**改名为 `MemorialDirector`**（建议用英文名，避免路径问题）：
-   ```
-   C:\Program Files (x86)\Steam\steamapps\common\RimWorld\Mods\MemorialDirector
-   ```
-   （找不到游戏目录：Steam 里右键 RimWorld → 管理 → 浏览本地文件。）
-4. 放好以后，文件夹里应该能看到 `About`、`Actors`、`Defs`、`Scripts`、`Textures`、`1.6` 这几个子文件夹。
+### 3. 放入导演 Mod（推荐：GitHub Desktop，一次设置，以后一键更新）
+1. 安装 **GitHub Desktop**（https://desktop.github.com），用你的 GitHub 账号登录。
+2. File → Clone repository → 选 `ascoolas/rimworld_memorial_do_convento`，
+   本地路径选一个好找的地方，例如 `D:\修道院纪事\rimworld_memorial_do_convento`。
+3. 顶部 **Current branch** 切换到 `claude/director-mod-skeleton`（以后如果合并进 main，就切回 main）。
+4. 打开克隆下来的文件夹，进入 `Tools`，双击 **`链接到游戏.bat`**，按提示回车。
+   它会在 `RimWorld\Mods\MemorialDirector` 建一个“链接”，直接指向仓库里的 `Mod` 文件夹。
+   （如果游戏的 Mods 里已经有旧的 MemorialDirector 文件夹，先把它改名备份，脚本会提示你。）
+
+**以后每次更新**：在 GitHub Desktop 里点 **Fetch origin → Pull origin**，然后重启游戏。不用再下载 ZIP、复制、覆盖。
+
+**你自己的东西也一样**：你写的剧本（`Mod\Scripts`）、导出的演员卡（`Mod\Actors`）直接就在仓库里。
+在 GitHub Desktop 左下角填一句说明，点 **Commit**，再点 **Push origin**，我这边就能看到。
+
+> 备用方法（不装 GitHub Desktop）：在 GitHub 网页上下载 ZIP，把 `Mod` 文件夹复制到
+> `RimWorld\Mods\` 并改名为 `MemorialDirector`。每次更新都要重新下载覆盖。
+
+### 什么时候要重启游戏
+| 改了什么 | 要不要重启 |
+|---|---|
+| 剧本（`Scripts`）、演员卡（`Actors`） | **不用**。直接重新“检查 / 开拍”就读到新内容 |
+| 程序（`1.6\Assemblies`）、定义（`Defs`）、贴图（`Textures`） | 要重启游戏 |
 
 ### 4. 启用
 启动游戏 → 主菜单“Mod” → 勾选 **Harmony** 和 **修道院纪事 · 导演**，确保 Harmony 排在前面 → 重启游戏。
@@ -87,6 +99,7 @@ RimWorld 没有真正的地图编辑器，但主菜单的 **剧本编辑器**（
   想换长相，有两种办法：
   1. 改种子数字，重新登场，挑到满意的为止；
   2. 在游戏里用造型台（或人物编辑器类 Mod）把这个人改好，选中他，在演员库点 **“选中角色存为演员卡”**，会覆盖同名演员卡，把发型、胡子、肤色、服装、伤残全部记下来。
+- **背景故事**：演员卡上的 `童年=` 和 `成年=` 决定角色信息卡里的背景。三位主角用的是本 Mod 按原著写的专属背景（如“马夫拉农家子 / 独手的退伍步兵”“塞巴斯蒂安娜的女儿 / 七个月亮”“巴西神童 / 飞行家神父”），定义在 `Mod\Defs\Backstories_Main.xml`。也可以填游戏自带背景的内部名字；不知道内部名字，就在游戏里给角色换好背景后用“存为演员卡”导出。
 - **义肢**：巴尔塔萨默认是空着的断腕。剧本里用 `<换义肢 角色="巴尔塔萨" 类型="铁钩"/>`，`类型` 可以写 铁钩 / 长钉 / 无。铁器会画在人物左手的位置，随朝向变化。
 
 ## 四、拍一场戏的流程

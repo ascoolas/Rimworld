@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    主角的专属背景故事（角色信息卡上的“童年”“成年”）。
+    依据萨拉马戈《修道院纪事》中文译本。
+    没有 spawnCategories，所以游戏不会把它们随机分给别人，只通过演员卡使用：
+      <演员 ... 童年="MD_Child_MafraFarmBoy" 成年="MD_Adult_VeteranInfantry">
+  -->
+
+  <!-- ==================== 巴尔塔萨·马特乌斯，“七个太阳” ==================== -->
+
+  <BackstoryDef>
+    <defName>MD_Child_MafraFarmBoy</defName>
+    <title>马夫拉农家子</title>
+    <titleShort>农家子</titleShort>
+    <baseDesc>[PAWN_nameDef]生在马夫拉一户农家。父亲若昂·弗朗西斯科种地、砍柴，母亲玛尔塔·马利亚操持家务。他从小跟着父亲下地，赶驴、劈柴、拔草，个子长得比同龄人都高。</baseDesc>
+    <slot>Childhood</slot>
+    <skillGains>
+      <Plants>3</Plants>
+      <Animals>2</Animals>
+      <Construction>1</Construction>
+    </skillGains>
+    <shuffleable>false</shuffleable>
+  </BackstoryDef>
+
+  <BackstoryDef>
+    <defName>MD_Adult_VeteranInfantry</defName>
+    <title>独手的退伍步兵</title>
+    <titleShort>退伍步兵</titleShort>
+    <baseDesc>[PAWN_nameDef]在王位继承战争中当了四年步兵。在赫雷斯德洛斯卡瓦列罗斯，一颗子弹打碎了他的左手，军医锯掉了手腕以下的部分。没有手就当不了兵，他被打发回家，在埃武拉乞讨了一个冬天，攒钱请铁匠打了一只铁钩和一根长钉。</baseDesc>
+    <slot>Adulthood</slot>
+    <skillGains>
+      <Melee>4</Melee>
+      <Shooting>3</Shooting>
+      <Construction>2</Construction>
+    </skillGains>
+    <shuffleable>false</shuffleable>
+  </BackstoryDef>
+
+  <!-- ==================== 布里蒙达·德·热苏斯，“七个月亮” ==================== -->
+
+  <BackstoryDef>
+    <defName>MD_Child_DaughterOfSebastiana</defName>
+    <title>塞巴斯蒂安娜的女儿</title>
+    <titleShort>女儿</titleShort>
+    <baseDesc>[PAWN_nameDef]的母亲塞巴斯蒂安娜·玛利亚·德·热苏斯能看见别人看不见的东西，也能听见别人听不见的声音，后来因此被宗教裁判所抓走。[PAWN_nameDef]从小就知道两件事：每天早上睁眼之前，要先吃一块面包；自己看见的东西，不能告诉任何人。</baseDesc>
+    <slot>Childhood</slot>
+    <skillGains>
+      <Cooking>2</Cooking>
+      <Crafting>2</Crafting>
+    </skillGains>
+    <shuffleable>false</shuffleable>
+  </BackstoryDef>
+
+  <BackstoryDef>
+    <defName>MD_Adult_SevenMoons</defName>
+    <title>七个月亮</title>
+    <titleShort>七个月亮</titleShort>
+    <baseDesc>空腹的时候，[PAWN_nameDef]能看见人的身体内部：病、胎儿、骨头；能看见地下的水、石头和埋着的东西；还能看见人的意志，那是一团密云。吃了面包，就什么也看不见了。她发过誓，永远不看自己所爱之人的内部。</baseDesc>
+    <slot>Adulthood</slot>
+    <skillGains>
+      <Medicine>3</Medicine>
+      <Crafting>3</Crafting>
+      <Social>2</Social>
+    </skillGains>
+    <shuffleable>false</shuffleable>
+  </BackstoryDef>
+
+  <!-- ==================== 巴尔托洛梅乌·洛伦索神父 ==================== -->
+
+  <BackstoryDef>
+    <defName>MD_Child_BrazilianProdigy</defName>
+    <title>巴西神童</title>
+    <titleShort>神童</titleShort>
+    <baseDesc>[PAWN_nameDef]生在巴西的桑托斯，少年时被送到葡萄牙读书。他记性惊人，能把整本书倒背如流；人们说他看一眼就能把机器的道理想明白。</baseDesc>
+    <slot>Childhood</slot>
+    <skillGains>
+      <Intellectual>4</Intellectual>
+      <Social>2</Social>
+    </skillGains>
+    <shuffleable>false</shuffleable>
+  </BackstoryDef>
+
+  <BackstoryDef>
+    <defName>MD_Adult_FlyingPriest</defName>
+    <title>飞行家神父</title>
+    <titleShort>神父</titleShort>
+    <baseDesc>在科英布拉读过书，是国王宠信的宫廷布道者。他曾当着国王的面放飞一只气球，从此人们叫他“飞行家”。他在阿威罗公爵的庄园里秘密建造一架会飞的机器：大鸟。他知道宗教裁判所一直盯着他。</baseDesc>
+    <slot>Adulthood</slot>
+    <skillGains>
+      <Intellectual>5</Intellectual>
+      <Social>4</Social>
+      <Crafting>2</Crafting>
+    </skillGains>
+    <shuffleable>false</shuffleable>
+  </BackstoryDef>
+
+</Defs>
