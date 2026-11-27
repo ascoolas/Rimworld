@@ -63,6 +63,12 @@ namespace MemorialDirector
             }
             if (Widgets.ButtonText(new Rect(row.x + 2 * (w + 6f), row.y, w, 30f), "拍摄模式设置"))
                 Find.WindowStack.Add(new Dialog_DirectorSettings());
+            l.Gap(4f);
+            if (l.ButtonText("演员库（登场 / 存为演员卡）"))
+            {
+                Close();
+                Find.WindowStack.Add(new Dialog_ActorLibrary());
+            }
             l.Gap(6f);
 
             l.Label($"剧本（{files.Count} 个）：");

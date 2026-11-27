@@ -24,6 +24,9 @@ namespace MemorialDirector
             Prefix(h, typeof(Pawn_InteractionsTracker), "InteractionsTrackerTickInterval", nameof(Interactions_Prefix));
             Prefix(h, typeof(Pawn_JobTracker), "TryFindAndStartJob", nameof(TryFindAndStartJob_Prefix));
             Prefix(h, typeof(Pawn_JobTracker), "CheckForJobOverride", nameof(CheckForJobOverride_Prefix));
+            Prefix(h, typeof(NamePlayerFactionAndSettlementUtility), "CanNameAnythingNow", nameof(CanName_Prefix));
+            Prefix(h, typeof(CameraDriver), "CameraDriverOnGUI", nameof(CameraInput_Prefix));
+            Postfix(h, typeof(CameraDriver), "CalculateCurInputDollyVect", nameof(CameraDolly_Postfix));
         }
 
         static void Prefix(Harmony h, Type type, string method, string prefix)
@@ -42,6 +45,42 @@ namespace MemorialDirector
             {
                 Log.Error($"[导演] 安装补丁 {type.Name}.{method} 失败：{e}");
             }
+        }
+
+        static void Postfix(Harmony h, Type type, string method, string postfix)
+        {
+            try
+            {
+                var target = AccessTools.Method(type, method);
+                if (target == null)
+                {
+                    Log.Warning($"[导演] 找不到 {type.Name}.{method}，这一项拍摄保护不起作用。");
+                    return;
+                }
+                h.Patch(target, postfix: new HarmonyMethod(typeof(Patches), postfix));
+            }
+            catch (Exception e)
+            {
+                Log.Error($"[导演] 安装补丁 {type.Name}.{method} 失败：{e}");
+            }
+        }
+
+        static bool CameraLocked => S.lockCamera && Stage.Instance != null && Stage.Instance.Running;
+
+        static bool CanName_Prefix(ref bool __result)
+        {
+            if (!S.blockNaming) return true;
+            __result = false;
+            return false;
+        }
+
+        // 鼠标拖动、滚轮缩放、键盘缩放都在这里处理：拍摄中跳过
+        static bool CameraInput_Prefix() => !CameraLocked;
+
+        // WASD / 方向键 / 屏幕边缘滚动：拍摄中归零
+        static void CameraDolly_Postfix(ref UnityEngine.Vector2 __result)
+        {
+            if (CameraLocked) __result = UnityEngine.Vector2.zero;
         }
 
         static bool Storyteller_Prefix() => !S.silentStoryteller;

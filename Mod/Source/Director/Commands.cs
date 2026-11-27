@@ -8,7 +8,7 @@ using Verse.AI;
 
 namespace MemorialDirector
 {
-    public enum CommandKind { Note, Camera, Follow, Unfollow, Walk, Face, Weather, Hour, End }
+    public enum CommandKind { Note, Camera, Follow, Unfollow, Walk, Face, Weather, Hour, End, Enter, Exit, Prosthetic }
 
     /// <summary>
     /// 所有剧本指令：每个指令都有“检查”（开拍前）和“执行”（到点时）两部分。
@@ -27,6 +27,16 @@ namespace MemorialDirector
             { "时刻", CommandKind.Hour },
             { "结束", CommandKind.End },
             { "注释", CommandKind.Note },
+            { "登场", CommandKind.Enter },
+            { "退场", CommandKind.Exit },
+            { "换义肢", CommandKind.Prosthetic },
+        };
+
+        static readonly Dictionary<string, string> prosthetics = new Dictionary<string, string>
+        {
+            { "铁钩", "MD_IronHook" },
+            { "长钉", "MD_IronSpike" },
+            { "无", null },
         };
 
         static readonly Dictionary<CommandKind, string[]> attrs = new Dictionary<CommandKind, string[]>
@@ -40,7 +50,15 @@ namespace MemorialDirector
             { CommandKind.Weather, new[] { "类型", "渐变" } },
             { CommandKind.Hour, new[] { "小时" } },
             { CommandKind.End, new string[0] },
+            { CommandKind.Enter, new[] { "角色", "到", "面向" } },
+            { CommandKind.Exit, new[] { "角色" } },
+            { CommandKind.Prosthetic, new[] { "角色", "类型", "部位" } },
         };
+
+        /// <summary>检查时用：剧本里每个 &lt;登场&gt; 的角色名 → 最早登场的时刻。</summary>
+        public static Dictionary<string, int> plannedEntrances = new Dictionary<string, int>();
+        static int checkingTick = -1;
+        public static void EndChecking() { checkingTick = -1; plannedEntrances.Clear(); }
 
         static readonly Dictionary<string, string> weatherAlias = new Dictionary<string, string>
         {
@@ -81,6 +99,7 @@ namespace MemorialDirector
         public static void Check(Cue c, Map map, List<string> errors)
         {
             void Err(string msg) => errors.Add($"{c.Where}：{msg}");
+            checkingTick = c.tick;
 
             switch (c.kind)
             {
@@ -123,6 +142,33 @@ namespace MemorialDirector
                         Err($"找不到天气“{c.Get("类型")}”。可以写：{string.Join("、", weatherAlias.Keys)}，或天气的英文 defName。");
                     break;
 
+                case CommandKind.Enter:
+                {
+                    if (!c.Has("角色")) { Err("缺少 角色。"); break; }
+                    var onMap = FindPawnRaw(c.Get("角色"), map, out _);
+                    if (onMap == null)
+                    {
+                        var card = ActorLibrary.Find(c.Get("角色"));
+                        if (card == null) Err($"地图上没有“{c.Get("角色")}”，演员库（Actors 文件夹）里也没有这张演员卡。");
+                        else foreach (var e in card.Check()) Err(e);
+                    }
+                    if (!c.Has("到")) { Err("缺少 到=\"x,z\"。"); break; }
+                    if (!TryParseCell(c.Get("到"), out var at)) Err("登场的 到 只能写坐标 x,z。");
+                    else if (!at.InBounds(map)) Err($"坐标 {c.Get("到")} 在地图外。");
+                    else if (!at.Standable(map)) Err($"坐标 {c.Get("到")} 站不了人。");
+                    if (c.Has("面向") && !directions.ContainsKey(c.Get("面向"))) Err("登场的 面向 只能写 北/南/东/西。");
+                    break;
+                }
+
+                case CommandKind.Exit:
+                    RequirePawn(c, "角色", map, Err);
+                    break;
+
+                case CommandKind.Prosthetic:
+                    RequirePawn(c, "角色", map, Err);
+                    if (!c.Has("类型") || !prosthetics.ContainsKey(c.Get("类型"))) Err("类型 只能写：铁钩、长钉、无。");
+                    break;
+
                 case CommandKind.Hour:
                     if (!float.TryParse(c.Get("小时") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out float h) || h < 0f || h >= 24f)
                         Err("小时 要写 0 到 23 之间的数字，例如 小时=\"14\"。");
@@ -134,7 +180,7 @@ namespace MemorialDirector
         {
             if (!c.Has("缩放")) return;
             CameraDirector.ZoomFromWord(c.Get("缩放"), out bool ok);
-            if (!ok) err("缩放 可以写：特写、近、中、远、全景，或数字（11 最近，60 最远）。");
+            if (!ok) err("缩放 可以写：特写、近景、中景、全景、大全景、鸟瞰，或数字（2.5 最近，80 最远；数字＝画面半高多少格）。");
         }
 
         static void CheckSeconds(Cue c, string key, System.Action<string> err)
@@ -237,6 +283,39 @@ namespace MemorialDirector
                 case CommandKind.End:
                     stage.FinishScript();
                     break;
+
+                case CommandKind.Enter:
+                {
+                    TryParseCell(c.Get("到"), out var at);
+                    var rot = c.Has("面向") ? directions[c.Get("面向")] : Rot4.South;
+                    var p = FindPawnRaw(c.Get("角色"), map, out _);
+                    if (p != null) ActorFactory.Teleport(p, at, rot);
+                    else
+                    {
+                        var card = ActorLibrary.Find(c.Get("角色"));
+                        if (card == null) return;
+                        p = ActorFactory.Spawn(card, map, at, rot);
+                    }
+                    var st = stage.GetState(p);
+                    st.ClearFacing();
+                    st.faceDir = rot;
+                    break;
+                }
+
+                case CommandKind.Exit:
+                {
+                    var p = FindPawn(c.Get("角色"), map, out _);
+                    if (p != null) ActorFactory.Remove(p);
+                    break;
+                }
+
+                case CommandKind.Prosthetic:
+                {
+                    var p = FindPawn(c.Get("角色"), map, out _);
+                    if (p == null) return;
+                    SwapProsthetic(p, c.Get("部位") ?? "左手", prosthetics[c.Get("类型")]);
+                    break;
+                }
             }
         }
 
@@ -268,6 +347,29 @@ namespace MemorialDirector
             var job = JobMaker.MakeJob(JobDefOf.Goto, dest);
             job.locomotionUrgency = c.Has("步态") ? gaits[c.Get("步态")] : LocomotionUrgency.Jog;
             stage.GiveDirectedJob(p, job);
+        }
+
+        /// <summary>换义肢：先摘掉这个部位上原有的铁钩/长钉，再装新的；“无”就是空着的断腕。</summary>
+        static void SwapProsthetic(Pawn p, string partName, string hediffDefName)
+        {
+            var part = ActorFactory.FindPart(p, partName);
+            if (part == null) { Log.Warning($"[导演] {p.LabelShort} 没有部位 {partName}"); return; }
+            foreach (var h in p.health.hediffSet.hediffs.Where(h => h.Part == part && h.def.defName.StartsWith("MD_")).ToList())
+                p.health.RemoveHediff(h);
+            if (hediffDefName == null)
+            {
+                if (!p.health.hediffSet.PartIsMissing(part))
+                {
+                    var missing = (Hediff_MissingPart)HediffMaker.MakeHediff(HediffDefOf.MissingBodyPart, p, part);
+                    missing.IsFresh = false;
+                    p.health.AddHediff(missing, part);
+                }
+            }
+            else
+            {
+                p.health.AddHediff(DefDatabase<HediffDef>.GetNamed(hediffDefName), part);
+            }
+            p.Drawer.renderer.SetAllGraphicsDirty();
         }
 
         static IntVec3 CellNextTo(Pawn target, Pawn walker, Map map)
@@ -347,6 +449,18 @@ namespace MemorialDirector
 
         /// <summary>按名字找地图上的角色：可以写昵称、名、姓或全名。</summary>
         public static Pawn FindPawn(string name, Map map, out string error)
+        {
+            var p = FindPawnRaw(name, map, out error);
+            if (p == null && error != null && checkingTick >= 0 && name != null
+                && plannedEntrances.TryGetValue(name.Trim(), out int enterTick))
+            {
+                if (enterTick <= checkingTick) error = null; // 剧本前面会让他/她登场
+                else error = $"“{name}”在 {Script.FormatTime(enterTick)} 才登场，这里还用不了。";
+            }
+            return p;
+        }
+
+        public static Pawn FindPawnRaw(string name, Map map, out string error)
         {
             error = null;
             name = name?.Trim();

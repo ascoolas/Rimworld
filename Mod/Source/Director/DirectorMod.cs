@@ -18,6 +18,9 @@ namespace MemorialDirector
         public bool showMouseCell = true;       // 鼠标旁显示格子坐标
         public bool autoScreenshotMode = false; // 开拍时自动隐藏界面
         public bool pauseAtEnd = true;          // 剧本结束时暂停
+        public bool blockNaming = true;         // 不弹出“给派系/殖民地取名”
+        public bool lockCamera = true;          // 开拍后键盘鼠标不能动镜头
+        public bool hideCursor = true;          // 开拍后隐藏鼠标指针
         public string lastScript = "";
 
         public override void ExposeData()
@@ -32,6 +35,9 @@ namespace MemorialDirector
             Scribe_Values.Look(ref autoScreenshotMode, "autoScreenshotMode", false);
             Scribe_Values.Look(ref pauseAtEnd, "pauseAtEnd", true);
             Scribe_Values.Look(ref lastScript, "lastScript", "");
+            Scribe_Values.Look(ref blockNaming, "blockNaming", true);
+            Scribe_Values.Look(ref lockCamera, "lockCamera", true);
+            Scribe_Values.Look(ref hideCursor, "hideCursor", true);
         }
 
         public void DoSettingsList(Listing_Standard l)
@@ -42,6 +48,7 @@ namespace MemorialDirector
             l.CheckboxLabeled("禁止精神崩溃和灵感", ref blockMental);
             l.CheckboxLabeled("禁止随机社交（聊天气泡、打架）", ref blockInteractions);
             l.CheckboxLabeled("冻结需求：饥饿、睡眠、娱乐等始终满值", ref freezeNeeds);
+            l.CheckboxLabeled("不弹出“给派系 / 殖民地取名”的窗口", ref blockNaming);
             l.CheckboxLabeled("演员待命：殖民者没有接到指令时原地站着不动", ref holdActors,
                 "开启后，殖民者不会自己去干活、吃饭、闲逛。你手动右键下达的命令仍然有效，方便布景。");
             l.GapLine();
@@ -50,6 +57,8 @@ namespace MemorialDirector
             l.CheckboxLabeled("开拍时自动进入截图模式（隐藏所有界面）", ref autoScreenshotMode,
                 "截图模式的开关键在 选项→按键设置 里叫“切换截图模式”。");
             l.CheckboxLabeled("剧本结束时自动暂停游戏", ref pauseAtEnd);
+            l.CheckboxLabeled("开拍后锁定镜头：键盘、鼠标、滚轮都不能移动镜头（F8 停止后恢复）", ref lockCamera);
+            l.CheckboxLabeled("开拍后隐藏鼠标指针", ref hideCursor);
         }
     }
 

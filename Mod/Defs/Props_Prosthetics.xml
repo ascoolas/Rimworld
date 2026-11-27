@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    巴尔塔萨的两件义肢：铁钩（干活）与长钉（武器）。
+    装在“左手”部位上。演员卡里写：<伤病 类型="MD_IronHook" 部位="左手"/>
+    人物身边会画出这件铁器，随朝向变化。
+  -->
+
+  <HediffDef Name="MD_ProstheticBase" Abstract="True">
+    <hediffClass>Hediff_AddedPart</hediffClass>
+    <defaultLabelColor>(0.62, 0.62, 0.68)</defaultLabelColor>
+    <isBad>false</isBad>
+    <everCurableByItem>false</everCurableByItem>
+    <countsAsAddedPartOrImplant>true</countsAsAddedPartOrImplant>
+  </HediffDef>
+
+  <HediffDef ParentName="MD_ProstheticBase">
+    <defName>MD_IronHook</defName>
+    <label>铁钩</label>
+    <labelNoun>一只铁钩</labelNoun>
+    <description>埃武拉的铁匠打的铁钩，用皮带绑在左腕上。干活用：挂肉、拉绳、推车。</description>
+    <addedPartProps>
+      <solid>true</solid>
+      <partEfficiency>0.6</partEfficiency>
+    </addedPartProps>
+    <renderNodeProperties>
+      <li>
+        <debugLabel>MD IronHook</debugLabel>
+        <texPath>MemorialDirector/Props/IronHook</texPath>
+        <parentTagDef>Body</parentTagDef>
+        <drawSize>0.42</drawSize>
+        <drawData>
+          <dataSouth><offset>(0.36, 0, -0.16)</offset><layer>45</layer></dataSouth>
+          <dataNorth><offset>(-0.36, 0, -0.16)</offset><layer>45</layer></dataNorth>
+          <dataEast><offset>(0.08, 0, -0.18)</offset><layer>-5</layer></dataEast>
+          <dataWest><offset>(-0.08, 0, -0.18)</offset><layer>45</layer></dataWest>
+        </drawData>
+      </li>
+    </renderNodeProperties>
+  </HediffDef>
+
+  <HediffDef ParentName="MD_ProstheticBase">
+    <defName>MD_IronSpike</defName>
+    <label>长钉</label>
+    <labelNoun>一根长钉</labelNoun>
+    <description>和铁钩出自同一个铁匠炉的长钉，用皮带绑在左腕上。它是武器，杀过人。</description>
+    <addedPartProps>
+      <solid>true</solid>
+      <partEfficiency>0.4</partEfficiency>
+    </addedPartProps>
+    <comps>
+      <li Class="HediffCompProperties_VerbGiver">
+        <tools>
+          <li>
+            <label>长钉</label>
+            <capacities>
+              <li>Stab</li>
+            </capacities>
+            <power>16</power>
+            <cooldownTime>1.8</cooldownTime>
+          </li>
+        </tools>
+      </li>
+    </comps>
+    <renderNodeProperties>
+      <li>
+        <debugLabel>MD IronSpike</debugLabel>
+        <texPath>MemorialDirector/Props/IronSpike</texPath>
+        <parentTagDef>Body</parentTagDef>
+        <drawSize>0.48</drawSize>
+        <drawData>
+          <dataSouth><offset>(0.36, 0, -0.18)</offset><layer>45</layer></dataSouth>
+          <dataNorth><offset>(-0.36, 0, -0.18)</offset><layer>45</layer></dataNorth>
+          <dataEast><offset>(0.08, 0, -0.2)</offset><layer>-5</layer></dataEast>
+          <dataWest><offset>(-0.08, 0, -0.2)</offset><layer>45</layer></dataWest>
+        </drawData>
+      </li>
+    </renderNodeProperties>
+  </HediffDef>
+
+</Defs>

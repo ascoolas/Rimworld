@@ -177,9 +177,19 @@ namespace MemorialDirector
             }
         }
 
+        bool cursorHidden;
+
         public override void GameComponentUpdate()
         {
+            CameraDirector.UnlockZoomRange();
+            if (Running && S.lockCamera)
+                Traverse.Create(Find.CameraDriver).Field("velocity").SetValue(Vector3.zero);
             camera.Update();
+
+            bool hide = Running && S.hideCursor;
+            if (hide) Cursor.visible = false;
+            else if (cursorHidden) Cursor.visible = true;
+            cursorHidden = hide;
         }
 
         public override void GameComponentOnGUI()

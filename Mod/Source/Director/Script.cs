@@ -139,11 +139,19 @@ namespace MemorialDirector
             }
             if (cues.Count == 0 && parseErrors.Count == 0)
                 errors.Add("剧本里没有任何指令。");
+            Commands.plannedEntrances.Clear();
+            foreach (var cue in cues)
+            {
+                if (cue.kind != CommandKind.Enter || !cue.Has("角色")) continue;
+                var n = cue.Get("角色");
+                if (!Commands.plannedEntrances.ContainsKey(n)) Commands.plannedEntrances[n] = cue.tick;
+            }
             foreach (var cue in cues)
             {
                 try { Commands.Check(cue, map, errors); }
                 catch (Exception e) { errors.Add($"{cue.Where}：检查时出错 {e.Message}"); }
             }
+            Commands.EndChecking();
             return errors;
         }
 

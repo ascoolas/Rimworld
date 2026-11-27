@@ -17,18 +17,30 @@ namespace MemorialDirector
         float fromSize, toSize;
         float t, duration;
 
+        public const float MinSize = 2.5f, MaxSize = 80f;
+
+        /// <summary>放开游戏自带的缩放范围（原版约 11–60），让剧本可以拍特写和鸟瞰。</summary>
+        public static void UnlockZoomRange()
+        {
+            var cfg = Find.CameraDriver?.config;
+            if (cfg == null) return;
+            if (cfg.sizeRange.min != MinSize || cfg.sizeRange.max != MaxSize)
+                cfg.sizeRange = new FloatRange(MinSize, MaxSize);
+        }
+
         public static float ZoomFromWord(string word, out bool ok)
         {
             ok = true;
             switch (word.Trim())
             {
-                case "特写": return 11f;
-                case "近": return 18f;
-                case "中": return 28f;
-                case "远": return 45f;
-                case "全景": return 60f;
+                case "特写": return 4f;
+                case "近景": case "近": return 6f;
+                case "中景": case "中": return 8f;
+                case "全景": return 14f;
+                case "大全景": case "远": return 28f;
+                case "鸟瞰": return 40f;
             }
-            ok = float.TryParse(word, out var f) && f > 0f;
+            ok = float.TryParse(word, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var f) && f >= MinSize && f <= MaxSize;
             return f;
         }
 
