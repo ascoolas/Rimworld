@@ -56,7 +56,7 @@ namespace MemorialDirector
                 var c = cards[i];
                 var r = new Rect(0f, i * 34f, view.width, 32f);
                 if (i % 2 == 0) Widgets.DrawLightHighlight(r);
-                var problems = c.Check();
+                var problems = c.Check(includeWarnings: true);
                 string label = $"{c.DisplayName}（{c.FullName}，{(c.gender == Gender.Female ? "女" : "男")}，{c.age:0} 岁）";
                 if (problems.Count > 0) label = "<color=#ff9a6a>⚠</color> " + label;
                 Widgets.Label(new Rect(r.x + 6f, r.y + 6f, r.width - 220f, 26f), label);

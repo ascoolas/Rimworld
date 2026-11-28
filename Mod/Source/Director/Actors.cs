@@ -105,10 +105,12 @@ namespace MemorialDirector
             string.Format(CultureInfo.InvariantCulture, "{0:0.###},{1:0.###},{2:0.###}", c.r, c.g, c.b);
 
         /// <summary>检查卡片里写的东西在当前游戏（含已装 DLC / Mod）里是否存在。</summary>
-        public List<string> Check()
+        public List<string> Check(bool includeWarnings = false)
         {
             var errs = new List<string>(errors);
             string who = $"演员卡“{DisplayName}”";
+            if (includeWarnings && (hair == null || headType == null || (gender == Gender.Male && beard == null)))
+                errs.Add($"{who}：外貌还没锁定（卡上没写 头型 / 发型{(gender == Gender.Male ? " / 胡子" : "")}）。装了新的发型 Mod 后长相可能会变。调好造型后用“选中角色存为演员卡”锁定。");
             if (bodyType != null && DefDatabase<BodyTypeDef>.GetNamedSilentFail(bodyType) == null) errs.Add($"{who}：找不到体型 {bodyType}");
             if (childhood != null && DefDatabase<BackstoryDef>.GetNamedSilentFail(childhood) == null) errs.Add($"{who}：找不到童年背景 {childhood}");
             if (adulthood != null && DefDatabase<BackstoryDef>.GetNamedSilentFail(adulthood) == null) errs.Add($"{who}：找不到成年背景 {adulthood}");
@@ -276,6 +278,29 @@ namespace MemorialDirector
             foreach (var t in p.story.traits.allTraits.ToList()) p.story.traits.RemoveTrait(t);
             foreach (var h in p.health.hediffSet.hediffs.ToList()) p.health.RemoveHediff(h);
 
+            // 卡上没写头型/发型/胡子时，不用游戏的随机（它受每局文化影响，每局都不一样），
+            // 改用“种子”从固定排序的列表里挑，保证每局一致。最可靠的还是用“存为演员卡”把具体名字写进卡里。
+            var rng = new System.Random(c.seed);
+            if (c.headType == null)
+            {
+                var heads = DefDatabase<HeadTypeDef>.AllDefs
+                    .Where(h => h.randomChosen && (h.gender == Gender.None || h.gender == c.gender) && (h.requiredGenes == null || h.requiredGenes.Count == 0))
+                    .OrderBy(h => h.defName, StringComparer.Ordinal).ToList();
+                if (heads.Count > 0) p.story.headType = heads[rng.Next(heads.Count)];
+            }
+            if (c.hair == null)
+            {
+                var hairs = DefDatabase<HairDef>.AllDefs.Where(h => StyleFits(h, c.gender))
+                    .OrderBy(h => h.defName, StringComparer.Ordinal).ToList();
+                if (hairs.Count > 0) p.story.hairDef = hairs[rng.Next(hairs.Count)];
+            }
+            if (c.beard == null && p.style != null && c.gender == Gender.Male)
+            {
+                var beards = DefDatabase<BeardDef>.AllDefs.Where(h => StyleFits(h, c.gender))
+                    .OrderBy(h => h.defName, StringComparer.Ordinal).ToList();
+                if (beards.Count > 0) p.style.beardDef = beards[rng.Next(beards.Count)];
+            }
+
             if (c.bodyType != null && DefDatabase<BodyTypeDef>.GetNamedSilentFail(c.bodyType) is BodyTypeDef bt) p.story.bodyType = bt;
             if (c.headType != null && DefDatabase<HeadTypeDef>.GetNamedSilentFail(c.headType) is HeadTypeDef ht) p.story.headType = ht;
             if (c.hair != null && DefDatabase<HairDef>.GetNamedSilentFail(c.hair) is HairDef hd) p.story.hairDef = hd;
@@ -318,6 +343,18 @@ namespace MemorialDirector
             }
             p.Notify_DisabledWorkTypesChanged();
             return p;
+        }
+
+        static bool StyleFits(StyleItemDef d, Gender g)
+        {
+            if (d.noGraphic && !(d is BeardDef)) return false;
+            if (d.requiredGene != null || d.requiredMutant != null) return false;
+            switch (d.styleGender)
+            {
+                case StyleGender.Male: case StyleGender.MaleUsually: return g == Gender.Male;
+                case StyleGender.Female: case StyleGender.FemaleUsually: return g == Gender.Female;
+                default: return true;
+            }
         }
 
         static Thing MakeItem(ActorCard.Item a, ActorCard c)
